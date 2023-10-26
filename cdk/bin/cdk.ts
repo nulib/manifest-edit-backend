@@ -7,7 +7,7 @@ import * as cdk from 'aws-cdk-lib';
 import { ManifestEditorBackendStack } from '../lib/cdk-stack';
 
 const app = new cdk.App();
-new ManifestEditorBackendStack(app, 'CdkStack', {
+const stack = new ManifestEditorBackendStack(app, 'ManifestEditorBackend', {
   /* If you don't specify 'env', this stack will be environment-agnostic.
    * Account/Region-dependent features and context lookups will not work,
    * but a single synthesized template can be deployed anywhere. */
@@ -22,3 +22,4 @@ new ManifestEditorBackendStack(app, 'CdkStack', {
 
   /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
 });
+cdk.Tags.of(stack).add("Project", "maktaba");
