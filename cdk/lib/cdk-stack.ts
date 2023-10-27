@@ -3,8 +3,9 @@ import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as cdk from "aws-cdk-lib";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as dynamoDB from "aws-cdk-lib/aws-dynamodb";
-import * as lambda from "aws-cdk-lib/aws-lambda"
-import * as path from "node:path"
+import * as iam from "aws-cdk-lib/aws-iam";
+import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as path from "node:path";
 
 import { Construct } from "constructs";
 
@@ -39,22 +40,37 @@ export class ManifestEditorBackendStack extends cdk.Stack {
 
     const helloResource = api.root.addResource("hello");
 
-    const helloFunction = new lambda.Function(this, 'HelloFunction', {
+    const helloFunction = new lambda.Function(this, "HelloFunction", {
       runtime: lambda.Runtime.NODEJS_18_X,
-      handler: 'index.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/hello')),
+      handler: "index.handler",
+      code: lambda.Code.fromAsset(path.join(__dirname, "../../lambdas/hello")),
+      environment: {
+        MANIFESTS_TABLE: manifestsTable.tableName,
+      },
     });
+
+    helloFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["dynamodb:GetItem"],
+        resources: [manifestsTable.tableArn],
+      })
+    );
 
     const helloResourcesGETMethod = helloResource.addMethod(
       "GET",
       new apigateway.LambdaIntegration(helloFunction),
       {
-        authorizer
+        authorizer,
       }
     );
 
     const deployment = new apigateway.Deployment(this, "Deployment", { api });
-    const stage = new apigateway.Stage(this, "latest", { deployment, stageName: "latest" });
-    console.log(stage.urlForPath('/hello'));
+    const stage = new apigateway.Stage(this, "latest", {
+      deployment,
+      stageName: "latest",
+    });
+
+    console.log(stage.urlForPath("/hello"));
   }
 }
