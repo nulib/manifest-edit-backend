@@ -1,11 +1,13 @@
-import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as amplify from '@aws-cdk/aws-amplify-alpha';
+import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as cdk from "aws-cdk-lib";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as dynamoDB from "aws-cdk-lib/aws-dynamodb";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as path from "node:path";
+
+import { ManagedPolicy, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 
 import { Construct } from "constructs";
 
@@ -71,12 +73,19 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       stageName: "latest",
     });
 
+    const role = new Role(this, 'AmplifyRoleWebApp', {
+      assumedBy: new ServicePrincipal('amplify.amazonaws.com'),
+      description: 'Custom role permitting resources creation from Amplify',
+      managedPolicies: [ManagedPolicy.fromAwsManagedPolicyName('AdministratorAccess-Amplify')],
+    });
+
     const amplifyApp = new amplify.App(this, "ManifestEditorUI", {
       sourceCodeProvider: new amplify.GitHubSourceCodeProvider({
         owner: "nulib",
         repository: "manifest-edit-ui",
         oauthToken: cdk.SecretValue.secretsManager("cdk/deploy-config", { jsonField: "github-token" })
       }),
+      role,
       description: "Manifest Editor UI",
       autoBranchCreation: {
         patterns: ["deploy/*", "preview/*"],
@@ -87,7 +96,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
 
     amplifyApp.addBranch("main", {
       autoBuild: true,
-      stage: "PRODUCTION"
+      stage: "PRODUCTION",
     })
   }
 
