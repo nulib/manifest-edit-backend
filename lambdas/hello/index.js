@@ -1,5 +1,6 @@
 const { DynamoDBDocumentClient, GetCommand } = require("@aws-sdk/lib-dynamodb");
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+const axios = require('axios')
 
 exports.handler = async function (event, context) {
   const client = new DynamoDBClient({});

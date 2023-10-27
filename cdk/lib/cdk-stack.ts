@@ -43,7 +43,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     const helloFunction = new lambda.Function(this, "HelloFunction", {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: "index.handler",
-      code: lambda.Code.fromAsset(path.join(__dirname, "../../lambdas/hello")),
+      code: this.bundleAssets("../../lambdas/hello"),
       environment: {
         MANIFESTS_TABLE: manifestsTable.tableName,
       },
@@ -72,5 +72,24 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     });
 
     console.log(stage.urlForPath("/hello"));
+  }
+
+  bundleAssets(codePath: string): lambda.Code {
+    return lambda.Code.fromAsset(path.join(__dirname, codePath), {
+      bundling: {
+        image: lambda.Runtime.NODEJS_18_X.bundlingImage,
+        user: "root",
+        command: [
+          "bash",
+          "-c",
+          [
+            "cp -rT /asset-input/ /asset-output/",
+            "cd /asset-output",
+            "npm ci --omit=dev",
+            "chown -R 1000:1000 .",
+          ].join(" && "),
+        ],
+      },
+    });
   }
 }
