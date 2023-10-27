@@ -37,7 +37,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       }
     );
 
-    const manifestResources = api.root.addResource("manifests");
+    const helloResource = api.root.addResource("hello");
 
     const helloFunction = new lambda.Function(this, 'HelloFunction', {
       runtime: lambda.Runtime.NODEJS_18_X,
@@ -45,7 +45,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/hello')),
     });
 
-    const manifestsResourcesGETMethod = manifestResources.addMethod(
+    const helloResourcesGETMethod = helloResource.addMethod(
       "GET",
       new apigateway.LambdaIntegration(helloFunction),
       {
@@ -53,6 +53,8 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       }
     );
 
-  
+    const deployment = new apigateway.Deployment(this, "Deployment", { api });
+    const stage = new apigateway.Stage(this, "latest", { deployment, stageName: "latest" });
+    console.log(stage.urlForPath('/hello'));
   }
 }
