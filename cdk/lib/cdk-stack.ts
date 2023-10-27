@@ -1,5 +1,5 @@
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
-// import * as amplify from '@aws-cdk/aws-amplify-alpha';
+import * as amplify from '@aws-cdk/aws-amplify-alpha';
 import * as cdk from "aws-cdk-lib";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as dynamoDB from "aws-cdk-lib/aws-dynamodb";
@@ -57,7 +57,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       })
     );
 
-    const helloResourcesGETMethod = helloResource.addMethod(
+    helloResource.addMethod(
       "GET",
       new apigateway.LambdaIntegration(helloFunction),
       {
@@ -71,7 +71,24 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       stageName: "latest",
     });
 
-    console.log(stage.urlForPath("/hello"));
+    const amplifyApp = new amplify.App(this, "ManifestEditorUI", {
+      sourceCodeProvider: new amplify.GitHubSourceCodeProvider({
+        owner: "nulib",
+        repository: "manifest-edit-ui",
+        oauthToken: cdk.SecretValue.secretsManager("cdk/deploy-config", { jsonField: "github-token" })
+      }),
+      description: "Manifest Editor UI",
+      autoBranchCreation: {
+        patterns: ["deploy/*", "preview/*"],
+        autoBuild: true,
+      },
+      autoBranchDeletion: true,
+    });
+
+    amplifyApp.addBranch("main", {
+      autoBuild: true,
+      stage: "PRODUCTION"
+    })
   }
 
   bundleAssets(codePath: string): lambda.Code {
