@@ -3,6 +3,8 @@ import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as cdk from "aws-cdk-lib";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as dynamoDB from "aws-cdk-lib/aws-dynamodb";
+import * as lambda from "aws-cdk-lib/aws-lambda"
+import * as path from "node:path"
 
 import { Construct } from "constructs";
 
@@ -37,57 +39,20 @@ export class ManifestEditorBackendStack extends cdk.Stack {
 
     const manifestResources = api.root.addResource("manifests");
 
+    const helloFunction = new lambda.Function(this, 'HelloFunction', {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../lambdas/hello')),
+    });
+
     const manifestsResourcesGETMethod = manifestResources.addMethod(
       "GET",
-      new apigateway.MockIntegration({
-        integrationResponses: [
-          {
-            statusCode: "200",
-            responseTemplates: {
-              "application/json": JSON.stringify({
-                manifests: [
-                  {
-                    id: "1",
-                    title: "Manifest 1",
-                    description: "Manifest 1 description",
-                  },
-                ],
-              }),
-            },
-          },
-        ],
-      }),
+      new apigateway.LambdaIntegration(helloFunction),
       {
-        methodResponses: [{ statusCode: "200" }],
-        authorizer,
+        authorizer
       }
     );
 
-    // api.root.addMethod("ANY");
-
-    // const manifestResources = api.root.addResource("manifests");
-    // manifestResources.addMethod("GET");
-
-    // const auth = new apigateway.CognitoUserPoolsAuthorizer(
-    //   this,
-    //   "booksAuthorizer",
-    //   {
-    //     cognitoUserPools: [userPool],
-    //   }
-    // );
-
-    // declare const books: apigateway.Resource;
-    // books.addMethod("GET", new apigateway.HttpIntegration("http://amazon.com"), {
-    //   authorizer: auth,
-    //   authorizationType: apigateway.AuthorizationType.COGNITO,
-    // });
-
-    // const auth = new apigateway.CognitoUserPoolsAuthorizer(
-    //   this,
-    //   "ManifestEditorAuth",
-    //   {
-    //     cognitoUserPools: [userPool],
-    //   }
-    // );
+  
   }
 }
