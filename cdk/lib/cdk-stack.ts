@@ -23,10 +23,13 @@ export class ManifestEditorBackendStack extends cdk.Stack {
 
     const manifestsTable = new dynamoDB.Table(this, "Manifests", {
       partitionKey: {
-        name: "id",
+        name: "uri",
         type: dynamoDB.AttributeType.STRING,
       },
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      sortKey: {
+        name: "sortKey",
+        type: dynamoDB.AttributeType.STRING,
+      }
     });
 
     const api = new apigateway.RestApi(this, "ManifestEditorApi", {});
