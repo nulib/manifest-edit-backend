@@ -88,7 +88,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     manifestListFunction.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
-        actions: ["dynamodb:Query"],
+        actions: ["dynamodb:Scan"],
         resources: [manifestsTable.tableArn],
       })
     );
