@@ -1,6 +1,6 @@
 const { DynamoDBDocumentClient, GetCommand } = require("@aws-sdk/lib-dynamodb");
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
-const axios = require('axios')
+const axios = require("axios");
 
 exports.handler = async function (event, context) {
   const client = new DynamoDBClient({});
@@ -9,7 +9,7 @@ exports.handler = async function (event, context) {
   const command = new GetCommand({
     TableName: process.env.MANIFESTS_TABLE,
     Key: {
-      id: "cd9a66f9-b10b-4b7c-b0dc-746b138dd941",
+      uri: "https://api.dc.library.northwestern.edu/api/v2/works/02c4ee9d-d34c-456e-82cf-6e197eac2b87?as=iiif",
     },
   });
 
