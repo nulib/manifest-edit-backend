@@ -120,10 +120,8 @@ export class ManifestEditorBackendStack extends cdk.Stack {
               "method.response.header.Access-Control-Allow-Origin": "'*'",
             },
             responseTemplates: {
-              "application/json": JSON.stringify({
-                message: "$util.parseJson($input.body)",
-                state: "ok",
-              }),
+              "application/json":
+                "#set($inputRoot = $input.path('$'))\n$inputRoot.body",
             },
             statusCode: "200",
           },
