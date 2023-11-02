@@ -14,16 +14,5 @@ exports.handler = async function (event, context) {
   });
   const response = await client.send(command);
   
-  const items = response.Items.map( (item) => {
-    return unmarshall(item);
-  });
-
-  return {
-    headers: {
-      "content-type": "application/json",
-    },
-    statusCode: 200,
-    body: JSON.stringify(items),
-  };
+  return response.Items.map((item) => unmarshall(item));
 };
-
