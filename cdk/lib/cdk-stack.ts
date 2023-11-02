@@ -32,7 +32,22 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       },
     });
 
-    const api = new apigateway.RestApi(this, "ManifestEditorApi", {});
+    const api = new apigateway.RestApi(this, "ManifestEditorApi", {
+      defaultCorsPreflightOptions: {
+        allowHeaders: [
+          "Content-Type",
+          "X-Amz-Date",
+          "Authorization",
+          "X-Api-Key",
+          "X-Amz-Security-Token",
+        ],
+        statusCode: 200,
+        allowMethods: ["OPTIONS", "GET", "POST", "DELETE"],
+        allowCredentials: true,
+        allowOrigins: apigateway.Cors.ALL_ORIGINS,
+      },
+      deploy: true,
+    });
     api.root.addMethod("ANY");
 
     const authorizer = new apigateway.CognitoUserPoolsAuthorizer(
@@ -70,7 +85,8 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       }
     );
 
-    const manifestListResource = api.root.addResource("manifestList");
+    // list all manifest metadata
+    const manifestListResource = api.root.addResource("manifests");
 
     const manifestListFunction = new lambda.Function(
       this,
@@ -78,7 +94,9 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       {
         runtime: lambda.Runtime.NODEJS_18_X,
         handler: "index.handler",
-        code: this.bundleAssets("../../lambdas/manifestList"),
+        code: lambda.Code.fromAsset(
+          path.join(__dirname, "../../lambdas/manifestList")
+        ),
         environment: {
           MANIFESTS_TABLE: manifestsTable.tableName,
         },
@@ -95,7 +113,107 @@ export class ManifestEditorBackendStack extends cdk.Stack {
 
     manifestListResource.addMethod(
       "GET",
-      new apigateway.LambdaIntegration(manifestListFunction),
+      new apigateway.LambdaIntegration(manifestListFunction, {
+        integrationResponses: [
+          {
+            responseParameters: {
+              "method.response.header.Access-Control-Allow-Origin": "'*'",
+            },
+            responseTemplates: {
+              "application/json": JSON.stringify({
+                message: "$util.parseJson($input.body)",
+                state: "ok",
+              }),
+            },
+            statusCode: "200",
+          },
+        ],
+        passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
+        proxy: false,
+        requestTemplates: {
+          "application/json": JSON.stringify({
+            input: "this is the input",
+          }),
+        },
+      }),
+      {
+        authorizer,
+        authorizationType: apigateway.AuthorizationType.COGNITO,
+        methodResponses: [
+          {
+            statusCode: "200",
+            responseParameters: {
+              "method.response.header.Access-Control-Allow-Origin": true,
+            },
+          },
+        ],
+      }
+    );
+
+    // retrieve single item by partition key + sort key
+    // could be either manifest metatdata or transcription/translation
+    const manifestItemResource = api.root.addResource("item");
+
+    const getManifestItemFunction = new lambda.Function(
+      this,
+      "getManifestItem",
+      {
+        runtime: lambda.Runtime.NODEJS_18_X,
+        handler: "index.handler",
+        code: lambda.Code.fromAsset(
+          path.join(__dirname, "../../lambdas/getManifestItem")
+        ),
+        environment: {
+          MANIFESTS_TABLE: manifestsTable.tableName,
+        },
+      }
+    );
+
+    getManifestItemFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["dynamodb:GetItem"],
+        resources: [manifestsTable.tableArn],
+      })
+    );
+
+    manifestItemResource.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(getManifestItemFunction),
+      {
+        authorizer,
+      }
+    );
+
+    // add/update/delete either metadata (public status) or transcription/translation
+    const manifestItemsResource = api.root.addResource("items");
+
+    const manifestItemsFunction = new lambda.Function(this, "manifestItems", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "index.handler",
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, "../../lambdas/manifestItems")
+      ),
+      environment: {
+        MANIFESTS_TABLE: manifestsTable.tableName,
+      },
+    });
+
+    manifestItemsFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "dynamodb:DeleteItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:PutItem",
+        ],
+        resources: [manifestsTable.tableArn],
+      })
+    );
+
+    manifestItemsResource.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(manifestItemsFunction),
       {
         authorizer,
       }
