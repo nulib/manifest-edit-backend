@@ -128,21 +128,21 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       }
     );
 
-    // add/update/delete either metadata (public status) or transcription/translation
-    // const manifestItemsResource = api.root.addResource("items");
+    // add/update/delete either metadata
+    const metadataResource = api.root.addResource("metadata");
 
-    const manifestItemsFunction = new lambda.Function(this, "manifestItems", {
+    const metadataFunction = new lambda.Function(this, "metadata", {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: "index.handler",
       code: lambda.Code.fromAsset(
-        path.join(__dirname, "../../lambdas/manifestItems")
+        path.join(__dirname, "../../lambdas/metadata")
       ),
       environment: {
         MANIFESTS_TABLE: manifestsTable.tableName,
       },
     });
 
-    manifestItemsFunction.addToRolePolicy(
+    metadataFunction.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: [
@@ -154,13 +154,27 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       })
     );
 
-    // manifestItemsResource.addMethod(
-    //   "POST",
-    //   new apigateway.LambdaIntegration(manifestItemsFunction),
-    //   {
-    //     authorizer,
-    //   }
-    // );
+    metadataResource.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(metadataFunction),
+      {
+        authorizer,
+      }
+    );
+    metadataResource.addMethod(
+      "PUT",
+      new apigateway.LambdaIntegration(metadataFunction),
+      {
+        authorizer,
+      }
+    );
+    metadataResource.addMethod(
+      "DELETE",
+      new apigateway.LambdaIntegration(metadataFunction),
+      {
+        authorizer,
+      }
+    );
 
     const deployment = new apigateway.Deployment(this, "Deployment", { api });
     const stage = new apigateway.Stage(this, "latest", {
