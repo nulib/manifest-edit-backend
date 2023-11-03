@@ -154,10 +154,36 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       })
     );
 
+    const metadataRequestBodySchema = new apigateway.Model(
+      this,
+      "MetadataRequestBodySchema",
+      {
+        restApi: api,
+        contentType: "application/json",
+        schema: {
+          type: apigateway.JsonSchemaType.OBJECT,
+          properties: {
+            uri: { type: apigateway.JsonSchemaType.STRING },
+            sortKey: { enum: ["METADATA"] },
+            label: { type: apigateway.JsonSchemaType.STRING },
+            provider: { enum: ["Northwestern", "UIUC"] },
+            public: { type: apigateway.JsonSchemaType.BOOLEAN },
+          },
+          required: ["uri", "sortKey", "label", "provider", "public"],
+        },
+      }
+    );
+
     metadataResource.addMethod(
       "POST",
       new apigateway.LambdaIntegration(metadataFunction),
       {
+        requestModels: {
+          "application/json": metadataRequestBodySchema,
+        },
+        requestValidatorOptions: {
+          validateRequestBody: true,
+        },
         authorizer,
       }
     );
