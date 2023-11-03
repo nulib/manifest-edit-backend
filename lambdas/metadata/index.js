@@ -96,7 +96,7 @@ exports.handler = async function (event, _context) {
 
   } catch (err) {
     console.error(JSON.stringify(err));
-    return respond(500, `Error - Unable to delete item: ${err.name}`);
+    return respond(500, `Error - Unable to complete request: ${err.name}`);
   }
   return respond(500, "Unknown request");
 }
