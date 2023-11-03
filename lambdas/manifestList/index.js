@@ -13,14 +13,16 @@ exports.handler = async function (event, context) {
     TableName: process.env.MANIFESTS_TABLE,
   });
   const response = await client.send(command);
-  
-  const items = response.Items.map( (item) => {
+
+  const items = response.Items.map((item) => {
     return unmarshall(item);
   });
 
   return {
     headers: {
       "content-type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Credentials": true
     },
     statusCode: 200,
     body: JSON.stringify(items),

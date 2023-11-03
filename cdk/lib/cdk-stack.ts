@@ -58,33 +58,6 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       }
     );
 
-    const helloResource = api.root.addResource("hello");
-
-    const helloFunction = new lambda.Function(this, "HelloFunction", {
-      runtime: lambda.Runtime.NODEJS_18_X,
-      handler: "index.handler",
-      code: this.bundleAssets("../../lambdas/hello"),
-      environment: {
-        MANIFESTS_TABLE: manifestsTable.tableName,
-      },
-    });
-
-    helloFunction.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["dynamodb:GetItem"],
-        resources: [manifestsTable.tableArn],
-      })
-    );
-
-    helloResource.addMethod(
-      "GET",
-      new apigateway.LambdaIntegration(helloFunction),
-      {
-        authorizer,
-      }
-    );
-
     // list all manifest metadata
     const manifestListResource = api.root.addResource("manifests");
 
@@ -113,38 +86,10 @@ export class ManifestEditorBackendStack extends cdk.Stack {
 
     manifestListResource.addMethod(
       "GET",
-      new apigateway.LambdaIntegration(manifestListFunction, {
-        integrationResponses: [
-          {
-            responseParameters: {
-              "method.response.header.Access-Control-Allow-Origin": "'*'",
-            },
-            responseTemplates: {
-              "application/json":
-                "#set($inputRoot = $input.path('$'))\n$inputRoot.body",
-            },
-            statusCode: "200",
-          },
-        ],
-        passthroughBehavior: apigateway.PassthroughBehavior.NEVER,
-        proxy: false,
-        requestTemplates: {
-          "application/json": JSON.stringify({
-            input: "this is the input",
-          }),
-        },
-      }),
+      new apigateway.LambdaIntegration(manifestListFunction),
       {
         authorizer,
         authorizationType: apigateway.AuthorizationType.COGNITO,
-        methodResponses: [
-          {
-            statusCode: "200",
-            responseParameters: {
-              "method.response.header.Access-Control-Allow-Origin": true,
-            },
-          },
-        ],
       }
     );
 
@@ -184,7 +129,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     );
 
     // add/update/delete either metadata (public status) or transcription/translation
-    const manifestItemsResource = api.root.addResource("items");
+    // const manifestItemsResource = api.root.addResource("items");
 
     const manifestItemsFunction = new lambda.Function(this, "manifestItems", {
       runtime: lambda.Runtime.NODEJS_18_X,
@@ -209,13 +154,13 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       })
     );
 
-    manifestItemsResource.addMethod(
-      "POST",
-      new apigateway.LambdaIntegration(manifestItemsFunction),
-      {
-        authorizer,
-      }
-    );
+    // manifestItemsResource.addMethod(
+    //   "POST",
+    //   new apigateway.LambdaIntegration(manifestItemsFunction),
+    //   {
+    //     authorizer,
+    //   }
+    // );
 
     const deployment = new apigateway.Deployment(this, "Deployment", { api });
     const stage = new apigateway.Stage(this, "latest", {
