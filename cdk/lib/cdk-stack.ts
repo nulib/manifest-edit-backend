@@ -154,32 +154,28 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       })
     );
 
-    const metadataRequestBodySchema = new apigateway.Model(
-      this,
-      "MetadataRequestBodySchema",
-      {
-        restApi: api,
-        contentType: "application/json",
-        schema: {
-          type: apigateway.JsonSchemaType.OBJECT,
-          properties: {
-            uri: { type: apigateway.JsonSchemaType.STRING },
-            sortKey: { enum: ["METADATA"] },
-            label: { type: apigateway.JsonSchemaType.STRING },
-            provider: { enum: ["Northwestern", "UIUC"] },
-            public: { type: apigateway.JsonSchemaType.BOOLEAN },
-          },
-          required: ["uri", "sortKey", "label", "provider", "public"],
+    const metadataRequest = new apigateway.Model(this, "metadataRequest", {
+      restApi: api,
+      contentType: "application/json",
+      schema: {
+        type: apigateway.JsonSchemaType.OBJECT,
+        properties: {
+          uri: { type: apigateway.JsonSchemaType.STRING },
+          sortKey: { enum: ["METADATA"] },
+          label: { type: apigateway.JsonSchemaType.STRING },
+          provider: { enum: ["Northwestern", "UIUC"] },
+          public: { type: apigateway.JsonSchemaType.BOOLEAN },
         },
-      }
-    );
+        required: ["uri", "sortKey", "label", "provider", "public"],
+      },
+    });
 
     metadataResource.addMethod(
       "POST",
       new apigateway.LambdaIntegration(metadataFunction),
       {
         requestModels: {
-          "application/json": metadataRequestBodySchema,
+          "application/json": metadataRequest,
         },
         requestValidatorOptions: {
           validateRequestBody: true,
@@ -187,17 +183,44 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         authorizer,
       }
     );
+
     metadataResource.addMethod(
       "PUT",
       new apigateway.LambdaIntegration(metadataFunction),
       {
+        requestModels: {
+          "application/json": metadataRequest,
+        },
+        requestValidatorOptions: {
+          validateRequestBody: true,
+        },
         authorizer,
       }
     );
+
+    const metadataKeys = new apigateway.Model(this, "metadataKeys", {
+      restApi: api,
+      contentType: "application/json",
+      schema: {
+        type: apigateway.JsonSchemaType.OBJECT,
+        properties: {
+          uri: { type: apigateway.JsonSchemaType.STRING },
+          sortKey: { enum: ["METADATA"] },
+        },
+        required: ["uri", "sortKey"],
+      },
+    });
+
     metadataResource.addMethod(
       "DELETE",
       new apigateway.LambdaIntegration(metadataFunction),
       {
+        requestModels: {
+          "application/json": metadataKeys,
+        },
+        requestValidatorOptions: {
+          validateRequestBody: true,
+        },
         authorizer,
       }
     );

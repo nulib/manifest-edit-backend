@@ -110,7 +110,7 @@ const respond = (statusCode, body) => {
       "Access-Control-Allow-Credentials": true
     },
     statusCode: statusCode,
-    body: body
+    body: statusCode === 200 ? body : `{message: ${body}}`
   }
 }
 
