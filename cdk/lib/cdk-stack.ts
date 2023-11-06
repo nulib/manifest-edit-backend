@@ -63,12 +63,12 @@ export class ManifestEditorBackendStack extends cdk.Stack {
 
     const manifestListFunction = new lambda.Function(
       this,
-      "ManifestListFunction",
+      "listManifests",
       {
         runtime: lambda.Runtime.NODEJS_18_X,
         handler: "index.handler",
         code: lambda.Code.fromAsset(
-          path.join(__dirname, "../../lambdas/manifestList")
+          path.join(__dirname, "../../lambdas/manifests")
         ),
         environment: {
           MANIFESTS_TABLE: manifestsTable.tableName,
@@ -99,12 +99,12 @@ export class ManifestEditorBackendStack extends cdk.Stack {
 
     const getManifestItemFunction = new lambda.Function(
       this,
-      "getManifestItem",
+      "getItem",
       {
         runtime: lambda.Runtime.NODEJS_18_X,
         handler: "index.handler",
         code: lambda.Code.fromAsset(
-          path.join(__dirname, "../../lambdas/getManifestItem")
+          path.join(__dirname, "../../lambdas/item")
         ),
         environment: {
           MANIFESTS_TABLE: manifestsTable.tableName,
@@ -129,13 +129,12 @@ export class ManifestEditorBackendStack extends cdk.Stack {
           uri: { type: apigateway.JsonSchemaType.STRING },
           sortKey: {
             type: apigateway.JsonSchemaType.STRING,
-            pattern: "^(METADATA|TRANSCRIPTION#.+|TRANSLATION#.+)$"
+            pattern: "^(METADATA|TRANSCRIPTION#.+|TRANSLATION#.+)$",
           },
         },
         required: ["uri", "sortKey"],
       },
     });
-
 
     manifestItemResource.addMethod(
       "POST",
@@ -151,7 +150,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       }
     );
 
-    // add/update/delete either metadata
+    // add/update/delete  metadata
     const metadataResource = api.root.addResource("metadata");
 
     const metadataFunction = new lambda.Function(this, "metadata", {
@@ -240,6 +239,107 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       {
         requestModels: {
           "application/json": metadataKeys,
+        },
+        requestValidatorOptions: {
+          validateRequestBody: true,
+        },
+        authorizer,
+      }
+    );
+
+    // ADD/UPDATE/DELETE ANNOTATIONS
+    const annotationResource = api.root.addResource("annotation");
+
+    const annotationFunction = new lambda.Function(this, "annotation", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "index.handler",
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, "../../lambdas/annotation")
+      ),
+      environment: {
+        MANIFESTS_TABLE: manifestsTable.tableName,
+      },
+    });
+
+    annotationFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "dynamodb:DeleteItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:PutItem",
+        ],
+        resources: [manifestsTable.tableArn],
+      })
+    );
+
+    const annotationRequest = new apigateway.Model(this, "annotationRequest", {
+      restApi: api,
+      contentType: "application/json",
+      schema: {
+        type: apigateway.JsonSchemaType.OBJECT,
+        properties: {
+          uri: { type: apigateway.JsonSchemaType.STRING },
+          sortKey: {
+            type: apigateway.JsonSchemaType.STRING,
+            pattern: "^(TRANSCRIPTION#|TRANSLATION#).+$",
+          },
+          value: { type: apigateway.JsonSchemaType.STRING },
+        },
+        required: ["uri", "sortKey", "value"],
+      },
+    });
+
+    annotationResource.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(annotationFunction),
+      {
+        requestModels: {
+          "application/json": annotationRequest,
+        },
+        requestValidatorOptions: {
+          validateRequestBody: true,
+        },
+        authorizer,
+      }
+    );
+
+    annotationResource.addMethod(
+      "PUT",
+      new apigateway.LambdaIntegration(annotationFunction),
+      {
+        requestModels: {
+          "application/json": annotationRequest,
+        },
+        requestValidatorOptions: {
+          validateRequestBody: true,
+        },
+        authorizer,
+      }
+    );
+
+    const annotationKeys = new apigateway.Model(this, "annotationKeys", {
+      restApi: api,
+      contentType: "application/json",
+      schema: {
+        type: apigateway.JsonSchemaType.OBJECT,
+        properties: {
+          uri: { type: apigateway.JsonSchemaType.STRING },
+          sortKey: {
+            type: apigateway.JsonSchemaType.STRING,
+            pattern: "^(TRANSCRIPTION#|TRANSLATION#).+$",
+          },
+        },
+        required: ["uri", "sortKey"],
+      },
+    });
+
+    annotationResource.addMethod(
+      "DELETE",
+      new apigateway.LambdaIntegration(annotationFunction),
+      {
+        requestModels: {
+          "application/json": annotationKeys,
         },
         requestValidatorOptions: {
           validateRequestBody: true,

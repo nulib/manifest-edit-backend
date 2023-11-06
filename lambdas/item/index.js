@@ -48,6 +48,6 @@ const respond = (statusCode, body) => {
       
     },
     statusCode: statusCode,
-    body: body
+    body: statusCode === 200 ? body : `{message: ${body}}`
   }
 }
