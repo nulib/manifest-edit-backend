@@ -120,10 +120,33 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       })
     );
 
+    const itemKeys = new apigateway.Model(this, "itemKeys", {
+      restApi: api,
+      contentType: "application/json",
+      schema: {
+        type: apigateway.JsonSchemaType.OBJECT,
+        properties: {
+          uri: { type: apigateway.JsonSchemaType.STRING },
+          sortKey: {
+            type: apigateway.JsonSchemaType.STRING,
+            pattern: "^(METADATA|TRANSCRIPTION#.+|TRANSLATION#.+)$"
+          },
+        },
+        required: ["uri", "sortKey"],
+      },
+    });
+
+
     manifestItemResource.addMethod(
       "POST",
       new apigateway.LambdaIntegration(getManifestItemFunction),
       {
+        requestModels: {
+          "application/json": itemKeys,
+        },
+        requestValidatorOptions: {
+          validateRequestBody: true,
+        },
         authorizer,
       }
     );
