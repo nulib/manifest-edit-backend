@@ -19,6 +19,21 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       selfSignUpEnabled: false,
       mfa: cognito.Mfa.OFF,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoVerify: {
+        email: true,
+      },
+    });
+
+    userPool.addClient("ManifestEditClient", {
+      userPoolClientName: "ManifestEditClient",
+      authFlows: {
+        userPassword: true,
+        adminUserPassword: true,
+        userSrp: true,
+      },
+      enableTokenRevocation: true,
+      preventUserExistenceErrors: true,
+      oAuth: {}
     });
 
     const manifestsTable = new dynamoDB.Table(this, "Manifests", {
@@ -61,20 +76,16 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     // list all manifest metadata
     const manifestListResource = api.root.addResource("manifests");
 
-    const manifestListFunction = new lambda.Function(
-      this,
-      "listManifests",
-      {
-        runtime: lambda.Runtime.NODEJS_18_X,
-        handler: "index.handler",
-        code: lambda.Code.fromAsset(
-          path.join(__dirname, "../../lambdas/manifests")
-        ),
-        environment: {
-          MANIFESTS_TABLE: manifestsTable.tableName,
-        },
-      }
-    );
+    const manifestListFunction = new lambda.Function(this, "listManifests", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "index.handler",
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, "../../lambdas/manifests")
+      ),
+      environment: {
+        MANIFESTS_TABLE: manifestsTable.tableName,
+      },
+    });
 
     manifestListFunction.addToRolePolicy(
       new iam.PolicyStatement({
@@ -97,20 +108,14 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     // could be either manifest metatdata or transcription/translation
     const manifestItemResource = api.root.addResource("item");
 
-    const getManifestItemFunction = new lambda.Function(
-      this,
-      "getItem",
-      {
-        runtime: lambda.Runtime.NODEJS_18_X,
-        handler: "index.handler",
-        code: lambda.Code.fromAsset(
-          path.join(__dirname, "../../lambdas/item")
-        ),
-        environment: {
-          MANIFESTS_TABLE: manifestsTable.tableName,
-        },
-      }
-    );
+    const getManifestItemFunction = new lambda.Function(this, "getItem", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "index.handler",
+      code: lambda.Code.fromAsset(path.join(__dirname, "../../lambdas/item")),
+      environment: {
+        MANIFESTS_TABLE: manifestsTable.tableName,
+      },
+    });
 
     getManifestItemFunction.addToRolePolicy(
       new iam.PolicyStatement({
