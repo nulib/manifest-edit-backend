@@ -57,7 +57,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
           "X-Amz-Security-Token",
         ],
         statusCode: 200,
-        allowMethods: ["OPTIONS", "GET", "POST", "DELETE"],
+        allowMethods: ["OPTIONS", "GET", "POST", "DELETE", "PUT"],
         allowCredentials: true,
         allowOrigins: apigateway.Cors.ALL_ORIGINS,
       },
