@@ -33,7 +33,7 @@ exports.handler = async function (event, context) {
     if(response.Item === undefined){
       return respond(200, {})
     }
-    return respond(200, JSON.stringify(response.Item));
+    return respond(200, response.Item);
   } catch (error) {
     return respond(500, "Internal Server Error")
   }
