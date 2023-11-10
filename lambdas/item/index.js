@@ -31,7 +31,7 @@ exports.handler = async function (event, context) {
     console.log("response", response)
   
     if(response.Item === undefined){
-      return respond(404, "Not found")
+      return respond(200, {})
     }
     return respond(200, JSON.stringify(response.Item));
   } catch (error) {
@@ -48,6 +48,6 @@ const respond = (statusCode, body) => {
       
     },
     statusCode: statusCode,
-    body: statusCode === 200 ? JSON.stringify({ body }) : JSON.stringify({ message: body })
+    body: JSON.stringify({ body })
   }
 }
