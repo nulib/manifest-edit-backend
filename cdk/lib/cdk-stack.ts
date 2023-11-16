@@ -161,9 +161,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     const metadataFunction = new lambda.Function(this, "metadata", {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: "index.handler",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "../../lambdas/metadata")
-      ),
+      code: this.bundleAssets("../../lambdas/metadata"),
       environment: {
         MANIFESTS_TABLE: manifestsTable.tableName,
       },

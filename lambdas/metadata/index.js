@@ -1,5 +1,6 @@
 const { DynamoDBClient, DeleteItemCommand, PutItemCommand, UpdateItemCommand } = require("@aws-sdk/client-dynamodb");
 const { marshall } = require("@aws-sdk/util-dynamodb");
+const { v4: uuidv4 } = require('uuid');
 
 
 exports.handler = async function (event, _context) {
@@ -22,7 +23,8 @@ exports.handler = async function (event, _context) {
       const input = {
         "TableName": process.env.MANIFESTS_TABLE,
         "Item": marshall({
-          ...requestBody
+          ...requestBody,
+          publishKey: uuidv4()
         }),
         ConditionExpression: "#uri <> :uri AND #sortKey <>  :sortKey",
         ExpressionAttributeNames: {

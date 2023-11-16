@@ -5,6 +5,7 @@ import "source-map-support/register";
 import * as cdk from "aws-cdk-lib";
 
 import { ManifestEditorBackendStack } from "../lib/cdk-stack";
+import { PublishCollectionStack } from "../lib/publish-collection-stack";
 
 const app = new cdk.App();
 const stack = new ManifestEditorBackendStack(app, "ManifestEditorBackend", {
@@ -19,4 +20,8 @@ const stack = new ManifestEditorBackendStack(app, "ManifestEditorBackend", {
   // env: { account: '123456789012', region: 'us-east-1' },
   /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
 });
+const publishCollectionStack = new PublishCollectionStack(app, "PublishCollection", {
+});
 cdk.Tags.of(stack).add("Project", "maktaba");
+cdk.Tags.of(publishCollectionStack).add("Project", "maktaba");
+
