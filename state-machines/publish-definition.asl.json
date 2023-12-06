@@ -102,7 +102,7 @@
       "Parameters": {
         "DistributionId": "${cloudFrontDistributionId}",
         "InvalidationBatch": {
-          "CallerReference": "manifest-edit",
+          "CallerReference.$": "$$.Execution.StartTime",
           "Paths": {
             "Quantity": 1,
             "Items": [

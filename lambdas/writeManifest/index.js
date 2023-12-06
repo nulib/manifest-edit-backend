@@ -141,7 +141,7 @@ async function saveDocumentToS3(key, doc){
     Bucket: BUCKET,
     ContentType: "application/json",
     ContentEncoding: 'base64',
-    Key: `temp/${key}.json`,
+    Key: `${key}.json`,
     ACL: "private",
     Body: JSON.stringify(doc, null, 4)
   }

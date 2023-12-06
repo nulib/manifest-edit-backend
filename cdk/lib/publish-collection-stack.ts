@@ -15,12 +15,9 @@ export class PublishCollectionStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // const bucketName = cdk.SecretValue.secretsManager("cdk/deploy-config", {
-    //   jsonField: "manifest-edit-assets-bucket",
-    // }).unsafeUnwrap().toString();
-    const bucketName = "";
-    // const deploySecrets = secretsmanager.Secret.fromSecretNameV2(this,'cdk/deploy-config','cdk/deploy-config');
-    // const bucketName = deploySecrets.secretValueFromJson('manifestBucket').unsafeUnwrap().toString();
+    const bucketName = cdk.SecretValue.secretsManager("cdk/deploy-config", {
+      jsonField: "manifestBucket",
+    }).unsafeUnwrap().toString();
     const bucket = new s3.Bucket(this, "assetsBucket", {
       bucketName: bucketName,
       accessControl: s3.BucketAccessControl.PRIVATE,

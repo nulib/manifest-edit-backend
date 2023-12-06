@@ -31,7 +31,7 @@ exports.handler = async function (event, context) {
 
     const params = {
       Bucket: BUCKET,
-      Key: "temp/collection.json",
+      Key: "collection.json",
       ContentType: "application/json",
       ACL: "private",
       Body: JSON.stringify(jsonCollection, null, 4)
