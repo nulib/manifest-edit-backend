@@ -60,16 +60,16 @@ exports.handler = async function (event, _context) {
           "#sortKey": "sortKey",
           "#label": "label",
           "#provider": "provider",
-          "#public": "public"
+          "#publicStatus": "publicStatus"
         },
         "ExpressionAttributeValues": {
           ":uri": { "S": requestBody.uri },
           ":sortKey": { "S": requestBody.sortKey },
           ":label": { "S": requestBody.label },
           ":provider": { "S": requestBody.provider },
-          ":public": { "BOOL": requestBody.public },
+          ":publicStatus": { "BOOL": requestBody.publicStatus },
         },
-        "UpdateExpression": "SET #label = :label, #provider = :provider, #public = :public",
+        "UpdateExpression": "SET #label = :label, #provider = :provider, #publicStatus = :publicStatus",
         "ReturnValue": "ALL_NEW"
       }
 
@@ -124,7 +124,7 @@ const validParams = (requestObject, method) => {
   if (!requestObject.uri || !requestObject.sortKey || requestObject.sortKey !== "METADATA") return false;
   if (!requestObject.label || !(typeof requestObject.label === 'string' || requestObject.label instanceof String)) return false;
   if (!requestObject.provider || !(requestObject.provider === "Northwestern" || requestObject.provider === "UIUC")) return false;
-  if (!requestObject.hasOwnProperty("public") || typeof requestObject.public !== 'boolean') return false;
+  if (!requestObject.hasOwnProperty("publicStatus") || typeof requestObject.publicStatus !== 'boolean') return false;
   return true;
 }
 

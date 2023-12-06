@@ -189,9 +189,9 @@ export class ManifestEditorBackendStack extends cdk.Stack {
           sortKey: { enum: ["METADATA"] },
           label: { type: apigateway.JsonSchemaType.STRING },
           provider: { enum: ["Northwestern", "UIUC"] },
-          public: { type: apigateway.JsonSchemaType.BOOLEAN },
+          publicStatus: { type: apigateway.JsonSchemaType.BOOLEAN },
         },
-        required: ["uri", "sortKey", "label", "provider", "public"],
+        required: ["uri", "sortKey", "label", "provider", "publicStatus"],
       },
     });
 
@@ -385,6 +385,12 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     amplifyApp.addBranch("main", {
       autoBuild: true,
       stage: "PRODUCTION",
+    });
+
+
+    new cdk.CfnOutput(this, "manifestsTableName", {
+      value: manifestsTable.tableName,
+      exportName: "manifestsTableName",
     });
   }
 

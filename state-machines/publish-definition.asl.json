@@ -1,0 +1,117 @@
+{
+  "Comment": "State machine that publishes IIIF Collection and Manifest resources to S3 bucket",
+  "StartAt": "Scan",
+  "States": {
+    "Scan": {
+      "Type": "Task",
+      "Parameters": {
+        "FilterExpression": "sortKey = :value",
+        "ExpressionAttributeValues": {
+          ":value": {
+            "S": "METADATA"
+          }
+        },
+        "ExpressionAttributeNames": {
+          "#uri": "uri",
+          "#publishKey": "publishKey"
+        },
+        "ProjectionExpression": "#uri,#publishKey",
+        "TableName": "${manifestTableName}"
+      },
+      "Resource": "arn:aws:states:::aws-sdk:dynamodb:scan",
+      "Next": "Parallel"
+    },
+    "Parallel": {
+      "Type": "Parallel",
+      "Next": "CreateInvalidation",
+      "Branches": [
+        {
+          "StartAt": "Map",
+          "States": {
+            "Map": {
+              "Type": "Map",
+              "ItemProcessor": {
+                "ProcessorConfig": {
+                  "Mode": "INLINE"
+                },
+                "StartAt": "Write Manifests",
+                "States": {
+                  "Write Manifests": {
+                    "Type": "Task",
+                    "Resource": "arn:aws:states:::lambda:invoke",
+                    "OutputPath": "$.Payload",
+                    "Parameters": {
+                      "Payload.$": "$",
+                      "FunctionName": "${writeManifestFunctionName}"
+                    },
+                    "Retry": [
+                      {
+                        "ErrorEquals": [
+                          "Lambda.ServiceException",
+                          "Lambda.AWSLambdaException",
+                          "Lambda.SdkClientException",
+                          "Lambda.TooManyRequestsException"
+                        ],
+                        "IntervalSeconds": 1,
+                        "MaxAttempts": 3,
+                        "BackoffRate": 2
+                      }
+                    ],
+                    "End": true
+                  }
+                }
+              },
+              "ItemsPath": "$.Items",
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "Write Collection",
+          "States": {
+            "Write Collection": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "OutputPath": "$.Payload",
+              "Parameters": {
+                "Payload.$": "$",
+                "FunctionName": "${writeCollectionFunctionName}"
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException",
+                    "Lambda.TooManyRequestsException"
+                  ],
+                  "IntervalSeconds": 1,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "End": true
+            }
+          }
+        }
+      ]
+    },
+    "CreateInvalidation": {
+      "Type": "Task",
+      "End": true,
+      "Parameters": {
+        "DistributionId": "${cloudFrontDistributionId}",
+        "InvalidationBatch": {
+          "CallerReference": "manifest-edit",
+          "Paths": {
+            "Quantity": 1,
+            "Items": [
+              "/*"
+            ]
+          }
+        }
+      },
+      "Resource": "arn:aws:states:::aws-sdk:cloudfront:createInvalidation"
+    }
+  }
+}
