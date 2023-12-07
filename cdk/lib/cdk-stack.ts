@@ -33,7 +33,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       },
       enableTokenRevocation: true,
       preventUserExistenceErrors: true,
-      oAuth: {}
+      oAuth: {},
     });
 
     const manifestsTable = new dynamoDB.Table(this, "Manifests", {
@@ -351,6 +351,46 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       }
     );
 
+    // publish collection and manifests
+    const publishResource = api.root.addResource("publish");
+
+    const publishStateMachineArn = cdk.SecretValue.secretsManager(
+      "cdk/deploy-config",
+      {
+        jsonField: "publishStateMachineArn",
+      }
+    )
+      .unsafeUnwrap()
+      .toString()
+
+    const publishFunction = new lambda.Function(this, "publish", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "index.handler",
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, "../../lambdas/publish")
+      ),
+      environment: {
+        PUBLISH_STATE_MACHINE_ARN: publishStateMachineArn,
+      },
+    });
+    publishFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "states:StartExecution",
+        ],
+        resources: [publishStateMachineArn],
+      })
+    );
+
+    publishResource.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(publishFunction),
+      {
+        authorizer,
+      }
+    );
+
     const deployment = new apigateway.Deployment(this, "Deployment", { api });
     const stage = new apigateway.Stage(this, "latest", {
       deployment,
@@ -386,7 +426,6 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       autoBuild: true,
       stage: "PRODUCTION",
     });
-
 
     new cdk.CfnOutput(this, "manifestsTableName", {
       value: manifestsTable.tableName,
