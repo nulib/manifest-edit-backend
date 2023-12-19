@@ -5,15 +5,19 @@
     "Scan": {
       "Type": "Task",
       "Parameters": {
-        "FilterExpression": "sortKey = :value",
+        "FilterExpression": "sortKey = :value AND #publicStatus = :isTrue",
         "ExpressionAttributeValues": {
           ":value": {
             "S": "METADATA"
+          },
+          ":isTrue": {
+            "Bool": true
           }
         },
         "ExpressionAttributeNames": {
           "#uri": "uri",
-          "#publishKey": "publishKey"
+          "#publishKey": "publishKey",
+          "#publicStatus": "publicStatus"
         },
         "ProjectionExpression": "#uri,#publishKey",
         "TableName": "${manifestTableName}"

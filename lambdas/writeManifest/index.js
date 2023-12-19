@@ -91,16 +91,17 @@ async function getAnnotations(uri, serviceId, canvasId) {
   /**
    * note that "commenting" is the spec valid motivation value, however the newly formed
    * IIIF Annotations TSG is proposing "transcribing" and "translating" as valid options
+   * let's use those once they are valid
    */
   const items = [
     {
       language: "ar",
-      motivation: "transcribing",
+      motivation: "commenting",
       sortKey: "TRANSCRIPTION"
     },
     {
       language: "en",
-      motivation: "translating",
+      motivation: "commenting",
       sortKey: "TRANSLATION"
     }
   ]; 

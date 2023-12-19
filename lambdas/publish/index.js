@@ -17,7 +17,7 @@ exports.handler = async function (_event, _context) {
       "Access-Control-Allow-Credentials": true
     },
     statusCode: 200,
-    body: "Collection and manifests are being published.",
+    body: JSON.stringify({ "published": true })
   }
 
 }

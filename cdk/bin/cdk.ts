@@ -6,22 +6,24 @@ import * as cdk from "aws-cdk-lib";
 
 import { ManifestEditorBackendStack } from "../lib/cdk-stack";
 import { PublishCollectionStack } from "../lib/publish-collection-stack";
+import { loadBuildConfig } from "../config/load-build-config";
 
 const app = new cdk.App();
-const stack = new ManifestEditorBackendStack(app, "ManifestEditorBackend", {
-  /* If you don't specify 'env', this stack will be environment-agnostic.
-   * Account/Region-dependent features and context lookups will not work,
-   * but a single synthesized template can be deployed anywhere. */
-  /* Uncomment the next line to specialize this stack for the AWS Account
-   * and Region that are implied by the current CLI configuration. */
-  // env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
-  /* Uncomment the next line if you know exactly what Account and Region you
-   * want to deploy the stack to. */
-  // env: { account: '123456789012', region: 'us-east-1' },
-  /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
-});
-const publishCollectionStack = new PublishCollectionStack(app, "PublishCollection", {
-});
-cdk.Tags.of(stack).add("Project", "maktaba");
-cdk.Tags.of(publishCollectionStack).add("Project", "maktaba");
+
+async function main() {
+  const buildConfig = await loadBuildConfig() || "{}"; //TODO: Typescript - fix this
+  const buildConfigJson = JSON.parse(buildConfig);
+
+  const stack = new ManifestEditorBackendStack(app, "ManifestEditorBackend", {
+    env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
+    ...buildConfigJson
+  });
+  const publishCollectionStack = new PublishCollectionStack(app, "PublishCollection", {
+    env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
+  });
+  cdk.Tags.of(stack).add("Project", "maktaba");
+  cdk.Tags.of(publishCollectionStack).add("Project", "maktaba");
+}
+
+main();
 
