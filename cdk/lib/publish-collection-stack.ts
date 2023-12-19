@@ -6,7 +6,6 @@ import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as path from "node:path";
 import * as s3 from "aws-cdk-lib/aws-s3";
-import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 
 import { Construct } from "constructs";
 import { aws_stepfunctions as stepfunctions } from 'aws-cdk-lib';
@@ -36,7 +35,10 @@ export class PublishCollectionStack extends cdk.Stack {
     const distribution = new cloudfront.Distribution(this, "CFDistribution", {
       defaultBehavior: {
         origin: new origins.S3Origin(bucket, { originAccessIdentity }),
-      },
+        responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.CORS_ALLOW_ALL_ORIGINS_WITH_PREFLIGHT,
+        cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+      }
     });
 
     const writeManifestFunction = new lambda.Function(this, "writeManifest", {

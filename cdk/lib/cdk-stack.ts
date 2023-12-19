@@ -6,13 +6,28 @@ import * as dynamoDB from "aws-cdk-lib/aws-dynamodb";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as path from "node:path";
+import * as route53  from 'aws-cdk-lib/aws-route53';
 
 import { ManagedPolicy, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
 
 import { Construct } from "constructs";
+import { aws_certificatemanager as acm } from 'aws-cdk-lib';
+
+interface  ManifestEditorBackendStackProps extends cdk.StackProps {
+  wildcardCertificateArn: string
+  deployBranch: string
+  publishStateMachineArn: string
+  baseDomainName: string
+  "github-token": string  
+  "weaviate-host": string
+  "weaviate-api-key": string
+  "azure-openai-api-key": string
+  "dcapi-endpoint": string
+  "textract-bucket-arn": string
+}
 
 export class ManifestEditorBackendStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props: ManifestEditorBackendStackProps) {
     super(scope, id, props);
 
     const userPool = new cognito.UserPool(this, "ManifestEditorUsers", {
@@ -47,6 +62,12 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       },
     });
 
+    const hostedZone = route53.HostedZone.fromLookup(this, 'hostedZone', {
+      domainName: props.baseDomainName,
+    });
+
+    const certificate = acm.Certificate.fromCertificateArn(this, 'Certificate', props.wildcardCertificateArn);
+
     const api = new apigateway.RestApi(this, "ManifestEditorApi", {
       defaultCorsPreflightOptions: {
         allowHeaders: [
@@ -62,8 +83,18 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         allowOrigins: apigateway.Cors.ALL_ORIGINS,
       },
       deploy: true,
+      domainName: {
+        domainName:  `admin-maktaba-api.${hostedZone.zoneName}`,
+        certificate: certificate,
+      },
     });
     api.root.addMethod("ANY");
+
+    const aliasRecord = new route53.ARecord(this, 'maktabaAdminApiAliasRecord', {
+      target: route53.RecordTarget.fromAlias(new cdk.aws_route53_targets.ApiGateway(api)),
+      zone: hostedZone,
+      recordName: `admin-maktaba-api.${hostedZone.zoneName}`,
+    });
 
     const authorizer = new apigateway.CognitoUserPoolsAuthorizer(
       this,
@@ -354,14 +385,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     // publish collection and manifests
     const publishResource = api.root.addResource("publish");
 
-    const publishStateMachineArn = cdk.SecretValue.secretsManager(
-      "cdk/deploy-config",
-      {
-        jsonField: "publishStateMachineArn",
-      }
-    )
-      .unsafeUnwrap()
-      .toString()
+    const publishStateMachineArn = props.publishStateMachineArn;
 
     const publishFunction = new lambda.Function(this, "publish", {
       runtime: lambda.Runtime.NODEJS_18_X,
@@ -391,12 +415,6 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       }
     );
 
-    const deployment = new apigateway.Deployment(this, "Deployment", { api });
-    const stage = new apigateway.Stage(this, "latest", {
-      deployment,
-      stageName: "latest",
-    });
-
     const role = new Role(this, "AmplifyRoleWebApp", {
       assumedBy: new ServicePrincipal("amplify.amazonaws.com"),
       description: "Custom role permitting resources creation from Amplify",
@@ -422,10 +440,18 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       autoBranchDeletion: true,
     });
 
-    amplifyApp.addBranch("main", {
+    const appDomain = amplifyApp.addDomain(`admin-maktaba.${hostedZone.zoneName}`,{
+      enableAutoSubdomain: true, 
+      autoSubdomainCreationPatterns: ["preview/*"]
+    });
+
+    const deployBranch = amplifyApp.addBranch(props.deployBranch, { 
       autoBuild: true,
       stage: "PRODUCTION",
     });
+
+    appDomain.mapRoot(deployBranch); 
+    appDomain.mapSubDomain(deployBranch, 'www'); 
 
     new cdk.CfnOutput(this, "manifestsTableName", {
       value: manifestsTable.tableName,
