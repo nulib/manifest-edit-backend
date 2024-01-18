@@ -5,26 +5,45 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as path from "node:path";
+import * as route53  from 'aws-cdk-lib/aws-route53';
 import * as s3 from "aws-cdk-lib/aws-s3";
 
 import { Construct } from "constructs";
+import { aws_certificatemanager as acm } from 'aws-cdk-lib';
 import { aws_stepfunctions as stepfunctions } from 'aws-cdk-lib';
 
+interface  PublishCollectionStackProps extends cdk.StackProps {
+  wildcardCertificateArn: string
+  deployBranch: string
+  publishStateMachineArn: string
+  baseDomainName: string
+  manifestBucket: string
+  "github-token": string  
+  "weaviate-host": string
+  "weaviate-api-key": string
+  "azure-openai-api-key": string
+  "dcapi-endpoint": string
+  "textract-bucket-arn": string
+}
+
 export class PublishCollectionStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props: PublishCollectionStackProps) {
     super(scope, id, props);
 
-    const bucketName = cdk.SecretValue.secretsManager("cdk/deploy-config", {
-      jsonField: "manifestBucket",
-    }).unsafeUnwrap().toString();
     const bucket = new s3.Bucket(this, "assetsBucket", {
-      bucketName: bucketName,
+      bucketName: props.manifestBucket,
       accessControl: s3.BucketAccessControl.PRIVATE,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
     const manifestTableName = cdk.Fn.importValue('manifestsTableName');
-    console.log("manifestTableName", manifestTableName);
+
+    const hostedZone = route53.HostedZone.fromLookup(this, 'hostedZone', {
+      domainName: props.baseDomainName,
+    });
+
+    const certificate = acm.Certificate.fromCertificateArn(this, 'Certificate', props.wildcardCertificateArn);
+
 
     const originAccessIdentity = new cloudfront.OriginAccessIdentity(
       this,
@@ -32,13 +51,23 @@ export class PublishCollectionStack extends cdk.Stack {
     );
     bucket.grantRead(originAccessIdentity);
 
+    const iiifAssetsDomainName = `iiif-maktaba.${props.baseDomainName}`;
+
     const distribution = new cloudfront.Distribution(this, "CFDistribution", {
       defaultBehavior: {
         origin: new origins.S3Origin(bucket, { originAccessIdentity }),
         responseHeadersPolicy: cloudfront.ResponseHeadersPolicy.CORS_ALLOW_ALL_ORIGINS_WITH_PREFLIGHT,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
-      }
+      },
+      domainNames: [iiifAssetsDomainName],
+      certificate: certificate,
+    });
+
+    const _aliasRecord = new route53.ARecord(this, 'CloudFrontDistAliasRecord', {
+      target: route53.RecordTarget.fromAlias(new cdk.aws_route53_targets.CloudFrontTarget(distribution)),
+      zone: hostedZone,
+      recordName: iiifAssetsDomainName,
     });
 
     const writeManifestFunction = new lambda.Function(this, "writeManifest", {
@@ -46,7 +75,7 @@ export class PublishCollectionStack extends cdk.Stack {
       handler: "index.handler",
       code: this.bundleAssets("../../lambdas/writeManifest"),
       environment: {
-        BASE_URL: `https://${distribution.domainName}`,
+        BASE_URL: `https://${iiifAssetsDomainName}`,
         BUCKET: bucket.bucketName,
         MANIFEST_TABLE_NAME: manifestTableName
       },
@@ -80,7 +109,7 @@ export class PublishCollectionStack extends cdk.Stack {
         handler: "index.handler",
         code: this.bundleAssets("../../lambdas/writeCollection"),
         environment: {
-          BASE_URL: `https://${distribution.domainName}`,
+          BASE_URL: `https://${iiifAssetsDomainName}`,
           BUCKET: bucket.bucketName,
           MANIFEST_TABLE_NAME: manifestTableName
         },

@@ -20,6 +20,7 @@ async function main() {
   });
   const publishCollectionStack = new PublishCollectionStack(app, "PublishCollection", {
     env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
+    ...buildConfigJson
   });
   cdk.Tags.of(stack).add("Project", "maktaba");
   cdk.Tags.of(publishCollectionStack).add("Project", "maktaba");

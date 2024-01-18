@@ -66,6 +66,8 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       domainName: props.baseDomainName,
     });
 
+    console.log("hostedZone", hostedZone.zoneName)
+
     const certificate = acm.Certificate.fromCertificateArn(this, 'Certificate', props.wildcardCertificateArn);
 
     const api = new apigateway.RestApi(this, "ManifestEditorApi", {
@@ -84,7 +86,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       },
       deploy: true,
       domainName: {
-        domainName:  `admin-maktaba-api.${hostedZone.zoneName}`,
+        domainName:  `api-maktaba.${hostedZone.zoneName}`,
         certificate: certificate,
       },
     });
@@ -93,7 +95,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     const aliasRecord = new route53.ARecord(this, 'maktabaAdminApiAliasRecord', {
       target: route53.RecordTarget.fromAlias(new cdk.aws_route53_targets.ApiGateway(api)),
       zone: hostedZone,
-      recordName: `admin-maktaba-api.${hostedZone.zoneName}`,
+      recordName: `api-maktaba.${hostedZone.zoneName}`,
     });
 
     const authorizer = new apigateway.CognitoUserPoolsAuthorizer(
