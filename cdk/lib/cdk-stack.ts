@@ -60,6 +60,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         name: "sortKey",
         type: dynamoDB.AttributeType.STRING,
       },
+      pointInTimeRecovery: true
     });
 
     const hostedZone = route53.HostedZone.fromLookup(this, 'hostedZone', {

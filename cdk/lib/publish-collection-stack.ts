@@ -34,6 +34,7 @@ export class PublishCollectionStack extends cdk.Stack {
       bucketName: props.manifestBucket,
       accessControl: s3.BucketAccessControl.PRIVATE,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
+      versioned: true,
     });
 
     const manifestTableName = cdk.Fn.importValue('manifestsTableName');
