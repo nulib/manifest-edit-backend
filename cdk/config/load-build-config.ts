@@ -3,7 +3,7 @@ import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-sec
 export const loadBuildConfig = async () => {
   const client = new SecretsManagerClient();
   const input = { 
-    SecretId: "cdk/deploy-config"
+    SecretId: "maktaba/deploy-config"
   };
   const command = new GetSecretValueCommand(input);
   const response = await client.send(command);

@@ -1,33 +1,36 @@
 import * as amplify from "@aws-cdk/aws-amplify-alpha";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as cdk from "aws-cdk-lib";
+import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as dynamoDB from "aws-cdk-lib/aws-dynamodb";
+import * as fs from "fs";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as path from "node:path";
-import * as route53  from 'aws-cdk-lib/aws-route53';
+import * as route53 from "aws-cdk-lib/aws-route53";
+import * as s3 from "aws-cdk-lib/aws-s3";
 
 import { ManagedPolicy, Role, ServicePrincipal } from "aws-cdk-lib/aws-iam";
 
 import { Construct } from "constructs";
-import { aws_certificatemanager as acm } from 'aws-cdk-lib';
+import { aws_certificatemanager as acm } from "aws-cdk-lib";
+import { aws_stepfunctions as stepfunctions } from "aws-cdk-lib";
 
-interface  ManifestEditorBackendStackProps extends cdk.StackProps {
-  wildcardCertificateArn: string
-  deployBranch: string
-  publishStateMachineArn: string
-  baseDomainName: string
-  "github-token": string  
-  "weaviate-host": string
-  "weaviate-api-key": string
-  "azure-openai-api-key": string
-  "dcapi-endpoint": string
-  "textract-bucket-arn": string
+interface ManifestEditorBackendStackProps extends cdk.StackProps {
+  wildcardCertificateArn: string;
+  deployBranch: string;
+  baseDomainName: string;
+  githubToken: string;
+  manifestBucket: string;
 }
-
 export class ManifestEditorBackendStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props: ManifestEditorBackendStackProps) {
+  constructor(
+    scope: Construct,
+    id: string,
+    props: ManifestEditorBackendStackProps
+  ) {
     super(scope, id, props);
 
     const userPool = new cognito.UserPool(this, "ManifestEditorUsers", {
@@ -60,16 +63,20 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         name: "sortKey",
         type: dynamoDB.AttributeType.STRING,
       },
-      pointInTimeRecovery: true
+      pointInTimeRecovery: true,
     });
 
-    const hostedZone = route53.HostedZone.fromLookup(this, 'hostedZone', {
+    const hostedZone = route53.HostedZone.fromLookup(this, "hostedZone", {
       domainName: props.baseDomainName,
     });
 
-    console.log("hostedZone", hostedZone.zoneName)
+    console.log("hostedZone", hostedZone.zoneName);
 
-    const certificate = acm.Certificate.fromCertificateArn(this, 'Certificate', props.wildcardCertificateArn);
+    const certificate = acm.Certificate.fromCertificateArn(
+      this,
+      "Certificate",
+      props.wildcardCertificateArn
+    );
 
     const api = new apigateway.RestApi(this, "ManifestEditorApi", {
       defaultCorsPreflightOptions: {
@@ -87,17 +94,23 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       },
       deploy: true,
       domainName: {
-        domainName:  `api-maktaba.${hostedZone.zoneName}`,
+        domainName: `api-maktaba.${hostedZone.zoneName}`,
         certificate: certificate,
       },
     });
     api.root.addMethod("ANY");
 
-    const aliasRecord = new route53.ARecord(this, 'maktabaAdminApiAliasRecord', {
-      target: route53.RecordTarget.fromAlias(new cdk.aws_route53_targets.ApiGateway(api)),
-      zone: hostedZone,
-      recordName: `api-maktaba.${hostedZone.zoneName}`,
-    });
+    const aliasRecord = new route53.ARecord(
+      this,
+      "maktabaAdminApiAliasRecord",
+      {
+        target: route53.RecordTarget.fromAlias(
+          new cdk.aws_route53_targets.ApiGateway(api)
+        ),
+        zone: hostedZone,
+        recordName: `api-maktaba.${hostedZone.zoneName}`,
+      }
+    );
 
     const authorizer = new apigateway.CognitoUserPoolsAuthorizer(
       this,
@@ -385,39 +398,6 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       }
     );
 
-    // publish collection and manifests
-    const publishResource = api.root.addResource("publish");
-
-    const publishStateMachineArn = props.publishStateMachineArn;
-
-    const publishFunction = new lambda.Function(this, "publish", {
-      runtime: lambda.Runtime.NODEJS_18_X,
-      handler: "index.handler",
-      code: lambda.Code.fromAsset(
-        path.join(__dirname, "../../lambdas/publish")
-      ),
-      environment: {
-        PUBLISH_STATE_MACHINE_ARN: publishStateMachineArn,
-      },
-    });
-    publishFunction.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          "states:StartExecution",
-        ],
-        resources: [publishStateMachineArn],
-      })
-    );
-
-    publishResource.addMethod(
-      "POST",
-      new apigateway.LambdaIntegration(publishFunction),
-      {
-        authorizer,
-      }
-    );
-
     const role = new Role(this, "AmplifyRoleWebApp", {
       assumedBy: new ServicePrincipal("amplify.amazonaws.com"),
       description: "Custom role permitting resources creation from Amplify",
@@ -430,8 +410,8 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       sourceCodeProvider: new amplify.GitHubSourceCodeProvider({
         owner: "nulib",
         repository: "manifest-edit-ui",
-        oauthToken: cdk.SecretValue.secretsManager("cdk/deploy-config", {
-          jsonField: "github-token",
+        oauthToken: cdk.SecretValue.secretsManager("maktaba/deploy-config", {
+          jsonField: "githubToken",
         }),
       }),
       role,
@@ -443,23 +423,207 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       autoBranchDeletion: true,
     });
 
-    const appDomain = amplifyApp.addDomain(`admin-maktaba.${hostedZone.zoneName}`,{
-      enableAutoSubdomain: true, 
-      autoSubdomainCreationPatterns: ["preview/*"]
-    });
+    const appDomain = amplifyApp.addDomain(
+      `admin-maktaba.${hostedZone.zoneName}`,
+      {
+        enableAutoSubdomain: true,
+        autoSubdomainCreationPatterns: ["preview/*"],
+      }
+    );
 
-    const deployBranch = amplifyApp.addBranch(props.deployBranch, { 
+    const deployBranch = amplifyApp.addBranch(props.deployBranch, {
       autoBuild: true,
       stage: "PRODUCTION",
     });
 
-    appDomain.mapRoot(deployBranch); 
-    appDomain.mapSubDomain(deployBranch, 'www'); 
+    appDomain.mapRoot(deployBranch);
+    appDomain.mapSubDomain(deployBranch, "www");
 
-    new cdk.CfnOutput(this, "manifestsTableName", {
-      value: manifestsTable.tableName,
-      exportName: "manifestsTableName",
+    const bucket = new s3.Bucket(this, "assetsBucket", {
+      bucketName: props.manifestBucket,
+      accessControl: s3.BucketAccessControl.PRIVATE,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      versioned: true,
     });
+    
+    const originAccessIdentity = new cloudfront.OriginAccessIdentity(
+      this,
+      "CFOriginAccessIdentity"
+    );
+    bucket.grantRead(originAccessIdentity);
+
+    const iiifAssetsDomainName = `iiif-maktaba.${props.baseDomainName}`;
+
+    const distribution = new cloudfront.Distribution(this, "CFDistribution", {
+      defaultBehavior: {
+        origin: new origins.S3Origin(bucket, { originAccessIdentity }),
+        responseHeadersPolicy:
+          cloudfront.ResponseHeadersPolicy
+            .CORS_ALLOW_ALL_ORIGINS_WITH_PREFLIGHT,
+        cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+      },
+      domainNames: [iiifAssetsDomainName],
+      certificate: certificate,
+    });
+
+    const _aliasRecord = new route53.ARecord(
+      this,
+      "CloudFrontDistAliasRecord",
+      {
+        target: route53.RecordTarget.fromAlias(
+          new cdk.aws_route53_targets.CloudFrontTarget(distribution)
+        ),
+        zone: hostedZone,
+        recordName: iiifAssetsDomainName,
+      }
+    );
+
+    const writeManifestFunction = new lambda.Function(this, "writeManifest", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "index.handler",
+      code: this.bundleAssets("../../lambdas/writeManifest"),
+      environment: {
+        BASE_URL: `https://${iiifAssetsDomainName}`,
+        BUCKET: bucket.bucketName,
+        MANIFEST_TABLE_NAME: manifestsTable.tableName,
+      },
+      timeout: cdk.Duration.minutes(1),
+      memorySize: 512,
+    });
+
+    writeManifestFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["s3:PutObject", "s3:PutObjectAcl"],
+        resources: [`${bucket.bucketArn}/*`, bucket.bucketArn],
+      })
+    );
+
+    writeManifestFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["dynamodb:GetItem"],
+        resources: [
+          `arn:aws:dynamodb:us-east-1:${this.account}:table/${manifestsTable.tableName}`,
+        ],
+      })
+    );
+
+    const writeCollectionFunction = new lambda.Function(
+      this,
+      "writeCollection",
+      {
+        runtime: lambda.Runtime.NODEJS_18_X,
+        handler: "index.handler",
+        code: this.bundleAssets("../../lambdas/writeCollection"),
+        environment: {
+          BASE_URL: `https://${iiifAssetsDomainName}`,
+          BUCKET: bucket.bucketName,
+          MANIFEST_TABLE_NAME: manifestsTable.tableName,
+        },
+        timeout: cdk.Duration.minutes(1),
+        memorySize: 512,
+      }
+    );
+
+    writeCollectionFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["s3:PutObject", "s3:PutObjectAcl"],
+        resources: [`${bucket.bucketArn}/*`, bucket.bucketArn],
+      })
+    );
+
+    const publishStateMachineRole = new iam.Role(
+      this,
+      "manifestPublishStateMachine",
+      {
+        assumedBy: new iam.ServicePrincipal("states.amazonaws.com"),
+        description: "Role for Manifest Editor Publish State Machine",
+      }
+    );
+
+    writeCollectionFunction.grantInvoke(publishStateMachineRole);
+    writeManifestFunction.grantInvoke(publishStateMachineRole);
+    distribution.grantCreateInvalidation(publishStateMachineRole);
+
+    publishStateMachineRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "dynamodb:Scan",
+          "dynamodb:Query",
+          "dynamodb:GetItem",
+          "dynamodb:BatchGetItem",
+        ],
+        resources: [
+          `arn:aws:dynamodb:us-east-1:${this.account}:table/${manifestsTable.tableName}`,
+        ],
+      })
+    );
+
+    publishStateMachineRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "xray:PutTraceSegments",
+          "xray:PutTelemetryRecords",
+          "xray:GetSamplingRules",
+          "xray:GetSamplingTargets",
+        ],
+        resources: ["*"],
+      })
+    );
+
+    const cfnStateMachineProps: stepfunctions.CfnStateMachineProps = {
+      roleArn: publishStateMachineRole.roleArn,
+      definitionString: fs
+        .readFileSync("../state-machines/publish-definition.asl.json")
+        .toString(),
+      definitionSubstitutions: {
+        manifestTableName: `${manifestsTable.tableName}`,
+        writeManifestFunctionName: `${writeManifestFunction.functionName}:$LATEST`,
+        writeCollectionFunctionName: `${writeCollectionFunction.functionName}:$LATEST`,
+        cloudFrontDistributionId: distribution.distributionId,
+      },
+      stateMachineName: "manifestEditPublish",
+    };
+
+    const stepFunction = new stepfunctions.CfnStateMachine(
+      this,
+      "manifestEditPublish",
+      cfnStateMachineProps
+    );
+
+    // publish collection and manifests
+    const publishResource = api.root.addResource("publish");
+
+    const publishFunction = new lambda.Function(this, "publish", {
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "index.handler",
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, "../../lambdas/publish")
+      ),
+      environment: {
+        PUBLISH_STATE_MACHINE_ARN: stepFunction.attrArn,
+      },
+    });
+    publishFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["states:StartExecution"],
+        resources: [stepFunction.attrArn],
+      })
+    );
+
+    publishResource.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(publishFunction),
+      {
+        authorizer,
+      }
+    );
   }
 
   bundleAssets(codePath: string): lambda.Code {
