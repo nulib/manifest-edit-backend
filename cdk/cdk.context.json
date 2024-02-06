@@ -6,5 +6,9 @@
   "hosted-zone:account=625046682746:domainName=dc.rdc-staging.library.northwestern.edu:region=us-east-1": {
     "Id": "/hostedzone/Z098677021ORQV75IH6J8",
     "Name": "dc.rdc-staging.library.northwestern.edu."
+  },
+  "hosted-zone:account=845225713889:domainName=dc.library.northwestern.edu:region=us-east-1": {
+    "Id": "/hostedzone/Z06354212XY7ZONKD0ANJ",
+    "Name": "dc.library.northwestern.edu."
   }
 }

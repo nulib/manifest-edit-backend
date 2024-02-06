@@ -42,7 +42,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       },
     });
 
-    userPool.addClient("ManifestEditClient", {
+    const userPoolClient = userPool.addClient("ManifestEditClient", {
       userPoolClientName: "ManifestEditClient",
       authFlows: {
         userPassword: true,
@@ -421,6 +421,12 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         autoBuild: true,
       },
       autoBranchDeletion: true,
+      environmentVariables: {
+        "VITE_REGION": "us-east-1",
+        "VITE_USER_POOL_ID": userPool.userPoolId,
+        "VITE_USER_POOL_APP_CLIENT_ID": userPoolClient.userPoolClientId,
+        "VITE_API_GATEWAY_ENDPOINT": `https://api-maktaba.${hostedZone.zoneName}`
+      }
     });
 
     const appDomain = amplifyApp.addDomain(
