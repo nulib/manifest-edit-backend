@@ -34,6 +34,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     super(scope, id, props);
 
     const userPool = new cognito.UserPool(this, "ManifestEditorUsers", {
+      userPoolName: "ManifestEditorUsers",
       selfSignUpEnabled: false,
       mfa: cognito.Mfa.OFF,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
@@ -54,7 +55,13 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       oAuth: {},
     });
 
+    const userPoolAdminGroup = new cognito.CfnUserPoolGroup(this, 'AdminPoolGroup', {
+      userPoolId: userPool.userPoolId,
+      groupName: 'Admin'
+    });
+
     const manifestsTable = new dynamoDB.Table(this, "Manifests", {
+      tableName: "MaktabaManifests",
       partitionKey: {
         name: "uri",
         type: dynamoDB.AttributeType.STRING,
@@ -65,6 +72,8 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       },
       pointInTimeRecovery: true,
     });
+
+    console.log("manifestsTable.tableName", manifestsTable.tableName)
 
     const hostedZone = route53.HostedZone.fromLookup(this, "hostedZone", {
       domainName: props.baseDomainName,
@@ -124,6 +133,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     const manifestListResource = api.root.addResource("manifests");
 
     const manifestListFunction = new lambda.Function(this, "listManifests", {
+      functionName: "maktabaListManifests",
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: "index.handler",
       code: lambda.Code.fromAsset(
@@ -173,9 +183,11 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     );
 
     const itemKeys = new apigateway.Model(this, "itemKeys", {
+      modelName: "itemKeys",
       restApi: api,
       contentType: "application/json",
       schema: {
+        title: "itemKeys",
         type: apigateway.JsonSchemaType.OBJECT,
         properties: {
           uri: { type: apigateway.JsonSchemaType.STRING },
@@ -206,6 +218,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     const metadataResource = api.root.addResource("metadata");
 
     const metadataFunction = new lambda.Function(this, "metadata", {
+      functionName: "maktabaMetadata",
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: "index.handler",
       code: this.bundleAssets("../../lambdas/metadata"),
@@ -227,9 +240,11 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     );
 
     const metadataRequest = new apigateway.Model(this, "metadataRequest", {
+      modelName: "metadataRequest",
       restApi: api,
       contentType: "application/json",
       schema: {
+        title: "metadataRequest",
         type: apigateway.JsonSchemaType.OBJECT,
         properties: {
           uri: { type: apigateway.JsonSchemaType.STRING },
@@ -271,9 +286,11 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     );
 
     const metadataKeys = new apigateway.Model(this, "metadataKeys", {
+      modelName: "metadataKeys",
       restApi: api,
       contentType: "application/json",
       schema: {
+        title: "metadataKeys",
         type: apigateway.JsonSchemaType.OBJECT,
         properties: {
           uri: { type: apigateway.JsonSchemaType.STRING },
@@ -301,6 +318,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     const annotationResource = api.root.addResource("annotation");
 
     const annotationFunction = new lambda.Function(this, "annotation", {
+      functionName: "maktabaAnnotation",
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: "index.handler",
       code: lambda.Code.fromAsset(
@@ -324,9 +342,11 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     );
 
     const annotationRequest = new apigateway.Model(this, "annotationRequest", {
+      modelName: "annotationRequest",
       restApi: api,
       contentType: "application/json",
       schema: {
+        title: "annotationRequest",
         type: apigateway.JsonSchemaType.OBJECT,
         properties: {
           uri: { type: apigateway.JsonSchemaType.STRING },
@@ -369,9 +389,11 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     );
 
     const annotationKeys = new apigateway.Model(this, "annotationKeys", {
+      modelName: "annotationKeys",
       restApi: api,
       contentType: "application/json",
       schema: {
+        title: "annotationKeys",
         type: apigateway.JsonSchemaType.OBJECT,
         properties: {
           uri: { type: apigateway.JsonSchemaType.STRING },
@@ -487,6 +509,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     );
 
     const writeManifestFunction = new lambda.Function(this, "writeManifest", {
+      functionName: "maktabaWriteManifest",
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: "index.handler",
       code: this.bundleAssets("../../lambdas/writeManifest"),
@@ -521,6 +544,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       this,
       "writeCollection",
       {
+        functionName: "maktabaWriteCollection",
         runtime: lambda.Runtime.NODEJS_18_X,
         handler: "index.handler",
         code: this.bundleAssets("../../lambdas/writeCollection"),
@@ -607,6 +631,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     const publishResource = api.root.addResource("publish");
 
     const publishFunction = new lambda.Function(this, "publish", {
+      functionName: "maktabaPublish",
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: "index.handler",
       code: lambda.Code.fromAsset(
