@@ -398,6 +398,8 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       }
     );
 
+    const iiifAssetsDomainName = `iiif-maktaba.${props.baseDomainName}`;
+
     const role = new Role(this, "AmplifyRoleWebApp", {
       assumedBy: new ServicePrincipal("amplify.amazonaws.com"),
       description: "Custom role permitting resources creation from Amplify",
@@ -425,7 +427,8 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         "VITE_REGION": "us-east-1",
         "VITE_USER_POOL_ID": userPool.userPoolId,
         "VITE_USER_POOL_APP_CLIENT_ID": userPoolClient.userPoolClientId,
-        "VITE_API_GATEWAY_ENDPOINT": `https://api-maktaba.${hostedZone.zoneName}`
+        "VITE_API_GATEWAY_ENDPOINT": `https://api-maktaba.${hostedZone.zoneName}`,
+        "VITE_IIIF_BASE_URL":  `https://${iiifAssetsDomainName}`
       }
     });
 
@@ -457,8 +460,6 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       "CFOriginAccessIdentity"
     );
     bucket.grantRead(originAccessIdentity);
-
-    const iiifAssetsDomainName = `iiif-maktaba.${props.baseDomainName}`;
 
     const distribution = new cloudfront.Distribution(this, "CFDistribution", {
       defaultBehavior: {
