@@ -141,7 +141,7 @@ async function getAnnotations(uri, serviceId, canvasId) {
         body: {
           type: "TextualBody",
           language: entry.language,
-          format: "text/plain",
+          format: "text/markdown",
           value: data.Item.value,
         },
         target: canvasId,
