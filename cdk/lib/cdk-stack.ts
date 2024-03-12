@@ -193,7 +193,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
           uri: { type: apigateway.JsonSchemaType.STRING },
           sortKey: {
             type: apigateway.JsonSchemaType.STRING,
-            pattern: "^(METADATA|TRANSCRIPTION#.+|TRANSLATION#.+)$",
+            pattern: "^(METADATA|TRANSCRIPTION#.+|TRANSLATION#.+|NOTE#.+)$",
           },
         },
         required: ["uri", "sortKey"],
@@ -352,7 +352,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
           uri: { type: apigateway.JsonSchemaType.STRING },
           sortKey: {
             type: apigateway.JsonSchemaType.STRING,
-            pattern: "^(TRANSCRIPTION#|TRANSLATION#).+$",
+            pattern: "^(TRANSCRIPTION#|TRANSLATION#|NOTE#).+$",
           },
           value: { type: apigateway.JsonSchemaType.STRING },
         },
@@ -399,7 +399,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
           uri: { type: apigateway.JsonSchemaType.STRING },
           sortKey: {
             type: apigateway.JsonSchemaType.STRING,
-            pattern: "^(TRANSCRIPTION#|TRANSLATION#).+$",
+            pattern: "^(TRANSCRIPTION#|TRANSLATION#|NOTE#).+$",
           },
         },
         required: ["uri", "sortKey"],
