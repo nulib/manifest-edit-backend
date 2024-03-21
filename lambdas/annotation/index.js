@@ -5,10 +5,15 @@ const { marshall } = require("@aws-sdk/util-dynamodb");
 exports.handler = async function (event, _context) {
   console.log("EVENT: \n" + JSON.stringify(event, null, 2));
   const method = event.httpMethod;
+  const headers = event.headers;
 
   try {
     const requestBody = JSON.parse(event.body);
     const client = new DynamoDBClient({});
+
+    if (!validContentType(method, headers)) {
+      return respond(415, `Unsupported content type`);
+    }
 
     // Add - will fail if uri/sortKey exists
     if (method === "POST") {
@@ -89,6 +94,16 @@ exports.handler = async function (event, _context) {
   }
   return respond(500, "Unknown request");
 }
+
+const validContentType = (method, headers) => {
+  if (method === "POST" || method === "PUT") {
+    if (headers === null || !headers.hasOwnProperty("content-type") || headers["content-type"] != "application/json") {
+      return false;
+    }
+  }
+  return true;
+}
+
 
 
 const respond = (statusCode, body) => {
