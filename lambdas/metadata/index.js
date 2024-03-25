@@ -6,9 +6,10 @@ const { v4: uuidv4 } = require('uuid');
 exports.handler = async function (event, _context) {
   console.log("EVENT: \n" + JSON.stringify(event, null, 2));
   const method = event.httpMethod;
+  const headers = event.headers;
   if (event.body === null || event.body === undefined || event.body === "") {
     return respond(400, "Invalid JSON in body parameters")
-  }
+  } 
 
   try {
     const requestBody = JSON.parse(event.body);
@@ -16,6 +17,8 @@ exports.handler = async function (event, _context) {
 
     if (!validParams(requestBody, method)) {
       return respond(400, "Invalid request paramters")
+    } else if (!validContentType(method, headers)) {
+      return respond(415, `Unsupported content type`);
     }
 
     // Add - will fail if uri/sortKey exists
@@ -114,6 +117,15 @@ const respond = (statusCode, body) => {
     statusCode: statusCode,
     body: statusCode === 200 ? body : `{message: ${body}}`
   }
+}
+
+const validContentType = (method, headers) => {
+  if (method === "POST" || method === "PUT") {
+    if (headers === null || !headers.hasOwnProperty("content-type") || headers["content-type"] != "application/json") {
+      return false;
+    }
+  }
+  return true;
 }
 
 const validParams = (requestObject, method) => {
