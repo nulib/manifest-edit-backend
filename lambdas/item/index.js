@@ -26,7 +26,7 @@ exports.handler = async function (event, context) {
     TableName: process.env.MANIFESTS_TABLE,
     Key: {
       uri: uri,
-      sortKey: sortKey.replace("library.northwestern.edu/iiif/3", "library.northwestern.edu/iiif/2")
+      sortKey: sortKey
     },
   });
 
