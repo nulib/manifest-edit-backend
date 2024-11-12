@@ -11,6 +11,7 @@ const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
 
 exports.handler = async function (event, context) {
+  console.log(event)
   try {
     /**
      * fetch IIIF manifest
@@ -49,10 +50,21 @@ exports.handler = async function (event, context) {
     };
 
     /**
-     * walk through Canvases
+     * Walk through Canvases and filter hidden ones
      */
-    await Promise.all(
-      manifest.items.map(async (item, index) => {
+    const visibleCanvases = await Promise.all(
+      manifest.items.map(async (item) => {
+        const resourceId = item.items[0].items[0].body.service[0]["@id"];
+        const hide = await hideCanvas(event.uri.S, resourceId);
+        return hide ? null : item;
+      })
+    );
+
+    // Filter out null values (hidden canvases)
+   const filteredCanvases = visibleCanvases.filter((item) => item !== null);
+
+    manifest.items = await Promise.all(
+      filteredCanvases.map(async (item, index) => {
         /**
          * tidy ids and create new Canvas
          */
@@ -86,7 +98,7 @@ exports.handler = async function (event, context) {
           ];
         }
 
-        manifest.items[index] = canvas;
+        return canvas;
       })
     );
 
@@ -101,6 +113,30 @@ exports.handler = async function (event, context) {
   };
 };
 
+/**
+ * hideCanvas function to check if a canvas should be hidden
+ */
+async function hideCanvas(uri, resourceId) {
+  const params = {
+    TableName: MANIFEST_TABLE_NAME,
+    Key: {
+      uri: uri,
+      sortKey: `CANVAS#${resourceId}`,
+    },
+  };
+
+  try {
+    const data = await docClient.send(new GetCommand(params));
+    if (data?.Item && data?.Item?.hide === true) {
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error("Error fetching item from DynamoDB: ", error);
+    return false;
+  }
+}
+
 async function getAnnotations(uri, serviceId, canvasId) {
   /**
    * note that "commenting" is the spec valid motivation value, however the newly formed
@@ -109,14 +145,14 @@ async function getAnnotations(uri, serviceId, canvasId) {
    */
   const items = [
     {
-      language: "ar",
-      motivation: "commenting",
-      sortKey: "TRANSCRIPTION",
-    },
-    {
       language: "en",
       motivation: "commenting",
       sortKey: "TRANSLATION",
+    },
+    {
+      language: "ar",
+      motivation: "commenting",
+      sortKey: "TRANSCRIPTION",
     },
   ];
 

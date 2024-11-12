@@ -55,10 +55,14 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       oAuth: {},
     });
 
-    const userPoolAdminGroup = new cognito.CfnUserPoolGroup(this, 'AdminPoolGroup', {
-      userPoolId: userPool.userPoolId,
-      groupName: 'Admin'
-    });
+    const userPoolAdminGroup = new cognito.CfnUserPoolGroup(
+      this,
+      "AdminPoolGroup",
+      {
+        userPoolId: userPool.userPoolId,
+        groupName: "Admin",
+      }
+    );
 
     const manifestsTable = new dynamoDB.Table(this, "Manifests", {
       tableName: "MaktabaManifests",
@@ -73,7 +77,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       pointInTimeRecovery: true,
     });
 
-    console.log("manifestsTable.tableName", manifestsTable.tableName)
+    console.log("manifestsTable.tableName", manifestsTable.tableName);
 
     const hostedZone = route53.HostedZone.fromLookup(this, "hostedZone", {
       domainName: props.baseDomainName,
@@ -193,7 +197,8 @@ export class ManifestEditorBackendStack extends cdk.Stack {
           uri: { type: apigateway.JsonSchemaType.STRING },
           sortKey: {
             type: apigateway.JsonSchemaType.STRING,
-            pattern: "^(METADATA|TRANSCRIPTION#.+|TRANSLATION#.+|NOTE#.+)$",
+            pattern:
+              "^(METADATA|CANVAS#.+|TRANSCRIPTION#.+|TRANSLATION#.+|NOTE#.+)$",
           },
         },
         required: ["uri", "sortKey"],
@@ -306,6 +311,75 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       {
         requestModels: {
           "application/json": metadataKeys,
+        },
+        requestValidatorOptions: {
+          validateRequestBody: true,
+        },
+        authorizer,
+      }
+    );
+
+    // add/update canvas
+
+    const canvasResource = api.root.addResource("canvas");
+
+    const canvasFunction = new lambda.Function(this, "canvas", {
+      functionName: "maktabaCanvas",
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "index.handler",
+      code: lambda.Code.fromAsset(path.join(__dirname, "../../lambdas/canvas")),
+      environment: {
+        MANIFESTS_TABLE: manifestsTable.tableName,
+      },
+    });
+
+    canvasFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["dynamodb:UpdateItem", "dynamodb:PutItem"],
+        resources: [manifestsTable.tableArn],
+      })
+    );
+
+    const canvasRequest = new apigateway.Model(this, "canvasRequest", {
+      modelName: "canvasRequest",
+      restApi: api,
+      contentType: "application/json",
+      schema: {
+        title: "canvasRequest",
+        type: apigateway.JsonSchemaType.OBJECT,
+        properties: {
+          uri: { type: apigateway.JsonSchemaType.STRING },
+          sortKey: {
+            type: apigateway.JsonSchemaType.STRING,
+            pattern: "^CANVAS#.+$",
+          },
+          hide: { type: apigateway.JsonSchemaType.BOOLEAN },
+        },
+        required: ["uri", "sortKey", "hide"],
+      },
+    });
+
+    canvasResource.addMethod(
+      "PUT",
+      new apigateway.LambdaIntegration(canvasFunction),
+      {
+        requestModels: {
+          "application/json": canvasRequest,
+        },
+        requestValidatorOptions: {
+          validateRequestBody: true,
+        },
+        authorizer,
+      }
+    );
+
+    canvasResource.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(canvasFunction),
+      {
+        requestModels: {
+          "application/json": canvasRequest,
         },
         requestValidatorOptions: {
           validateRequestBody: true,
@@ -446,12 +520,12 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       },
       autoBranchDeletion: true,
       environmentVariables: {
-        "VITE_REGION": "us-east-1",
-        "VITE_USER_POOL_ID": userPool.userPoolId,
-        "VITE_USER_POOL_APP_CLIENT_ID": userPoolClient.userPoolClientId,
-        "VITE_API_GATEWAY_ENDPOINT": `https://api-maktaba.${hostedZone.zoneName}`,
-        "VITE_IIIF_BASE_URL":  `https://${iiifAssetsDomainName}`
-      }
+        VITE_REGION: "us-east-1",
+        VITE_USER_POOL_ID: userPool.userPoolId,
+        VITE_USER_POOL_APP_CLIENT_ID: userPoolClient.userPoolClientId,
+        VITE_API_GATEWAY_ENDPOINT: `https://api-maktaba.${hostedZone.zoneName}`,
+        VITE_IIIF_BASE_URL: `https://${iiifAssetsDomainName}`,
+      },
     });
 
     const appDomain = amplifyApp.addDomain(
@@ -476,7 +550,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       versioned: true,
     });
-    
+
     const originAccessIdentity = new cloudfront.OriginAccessIdentity(
       this,
       "CFOriginAccessIdentity"

@@ -4,6 +4,9 @@ cdk/**/*.js
 node_modules
 template.yml
 
+# os files
+.DS_Store
+
 # CDK asset staging directory
 .cdk.staging
 cdk.out
