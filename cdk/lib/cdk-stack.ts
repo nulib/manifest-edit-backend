@@ -255,6 +255,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
           uri: { type: apigateway.JsonSchemaType.STRING },
           sortKey: { enum: ["METADATA"] },
           label: { type: apigateway.JsonSchemaType.STRING },
+          summary: { type: apigateway.JsonSchemaType.STRING },
           provider: { enum: ["Northwestern", "UIUC"] },
           publicStatus: { type: apigateway.JsonSchemaType.BOOLEAN },
         },
@@ -637,6 +638,16 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         effect: iam.Effect.ALLOW,
         actions: ["s3:PutObject", "s3:PutObjectAcl"],
         resources: [`${bucket.bucketArn}/*`, bucket.bucketArn],
+      })
+    );
+
+    writeCollectionFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "dynamodb:GetItem",
+        ],
+        resources: [manifestsTable.tableArn],
       })
     );
 

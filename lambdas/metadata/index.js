@@ -62,6 +62,7 @@ exports.handler = async function (event, _context) {
           "#uri": "uri",
           "#sortKey": "sortKey",
           "#label": "label",
+          "#summary": "summary",
           "#provider": "provider",
           "#publicStatus": "publicStatus"
         },
@@ -69,10 +70,11 @@ exports.handler = async function (event, _context) {
           ":uri": { "S": requestBody.uri },
           ":sortKey": { "S": requestBody.sortKey },
           ":label": { "S": requestBody.label },
+          ":summary": { "S": requestBody.summary || "" },
           ":provider": { "S": requestBody.provider },
           ":publicStatus": { "BOOL": requestBody.publicStatus },
         },
-        "UpdateExpression": "SET #label = :label, #provider = :provider, #publicStatus = :publicStatus",
+        "UpdateExpression": "SET #label = :label, #provider = :provider, #publicStatus = :publicStatus, #summary = :summary",
         "ReturnValue": "ALL_NEW"
       }
 
@@ -135,6 +137,7 @@ const validParams = (requestObject, method) => {
 
   if (!requestObject.uri || !requestObject.sortKey || requestObject.sortKey !== "METADATA") return false;
   if (!requestObject.label || !(typeof requestObject.label === 'string' || requestObject.label instanceof String)) return false;
+  if (requestObject.hasOwnProperty("summary") && !(typeof requestObject.summary === 'string' || requestObject.summary instanceof String)) return false;
   if (!requestObject.provider || !(requestObject.provider === "Northwestern" || requestObject.provider === "UIUC")) return false;
   if (!requestObject.hasOwnProperty("publicStatus") || typeof requestObject.publicStatus !== 'boolean') return false;
   return true;

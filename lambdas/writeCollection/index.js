@@ -1,8 +1,13 @@
+const { DynamoDBDocumentClient, GetCommand } = require("@aws-sdk/lib-dynamodb");
+const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
 const axios = require("axios");
 
 const PUBLIC_BASE_URL = process.env.BASE_URL;
 const BUCKET = process.env.BUCKET;
+const MANIFEST_TABLE_NAME = process.env.MANIFEST_TABLE_NAME;
+const client = new DynamoDBClient({});
+const docClient = DynamoDBDocumentClient.from(client);
 
 exports.handler = async function (event, context) {
   console.log(JSON.stringify(event))
@@ -22,7 +27,9 @@ exports.handler = async function (event, context) {
     const items = await Promise.all(event.Items.map(async (item) => {
       const result = await axios.get(item.uri.S);
       const manifest = result.data;
-      return {"id": `${PUBLIC_BASE_URL}/${item.publishKey.S}.json`, "type": "Manifest", "label": manifest["label"]}
+      const storedLabel = await getLabel(item.uri.S);
+      const label = storedLabel ? { "none": [storedLabel] } : manifest.label;
+      return {"id": `${PUBLIC_BASE_URL}/${item.publishKey.S}.json`, "type": "Manifest", "label": label}
     }));
   
     jsonCollection.items = items;
@@ -50,3 +57,28 @@ exports.handler = async function (event, context) {
     return response;
   
 };
+
+/**
+ * getLabel function to check get label for manifest
+ */
+async function getLabel(uri) {
+  const params = {
+    TableName: MANIFEST_TABLE_NAME,
+    Key: {
+      uri: uri,
+      sortKey: `METADATA`,
+    },
+  };
+
+  try {
+    const data = await docClient.send(new GetCommand(params));
+    if (data?.Item) {
+      return data.Item.label
+    }else{
+      return null;
+    }
+  } catch (error) {
+    console.error("Error fetching metadata from DynamoDB: ", error);
+    return null;
+  }
+}
