@@ -48,6 +48,15 @@ exports.handler = async function (event, context) {
         },
       ],
     };
+    /**
+    * Get label and summary from database
+    */
+    const metadata = await getLabelAndSummary(event.uri.S);
+    if (metadata) {
+      metadata.label && (manifest.label = { "none": [metadata.label] });
+      metadata.summary && (manifest.summary = { "none": [metadata.summary] });
+    }
+
 
     /**
      * Walk through Canvases and filter hidden ones
@@ -61,7 +70,7 @@ exports.handler = async function (event, context) {
     );
 
     // Filter out null values (hidden canvases)
-   const filteredCanvases = visibleCanvases.filter((item) => item !== null);
+    const filteredCanvases = visibleCanvases.filter((item) => item !== null);
 
     manifest.items = await Promise.all(
       filteredCanvases.map(async (item, index) => {
@@ -134,6 +143,33 @@ async function hideCanvas(uri, resourceId) {
   } catch (error) {
     console.error("Error fetching item from DynamoDB: ", error);
     return false;
+  }
+}
+
+/**
+ * getLabelAndSummary function to check get label and summary for manifest
+ */
+async function getLabelAndSummary(uri) {
+  const params = {
+    TableName: MANIFEST_TABLE_NAME,
+    Key: {
+      uri: uri,
+      sortKey: `METADATA`,
+    },
+  };
+
+  try {
+    const data = await docClient.send(new GetCommand(params));
+    if (data?.Item) {
+      return {
+        label: data.Item.label || null,
+        summary: data.Item.summary || null,
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching metadata from DynamoDB: ", error);
+    return null;
   }
 }
 
