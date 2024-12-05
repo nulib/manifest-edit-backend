@@ -18,7 +18,7 @@ exports.handler = async function (event, context) {
     "type": "Collection",
     "label": {
       "none": [
-        "This is the label"
+        "Maktaba"
       ]
     }
   }
