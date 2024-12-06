@@ -10,30 +10,39 @@ const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
 
 exports.handler = async function (event, context) {
-  console.log(JSON.stringify(event))
+  console.log(JSON.stringify(event));
 
   const jsonCollection = {
     "@context": "http://iiif.io/api/presentation/3/context.json",
-    "id": `${PUBLIC_BASE_URL}/collection.json`,
-    "type": "Collection",
-    "label": {
-      "none": [
-        "This is the label"
-      ]
-    }
-  }
+    id: `${PUBLIC_BASE_URL}/collection.json`,
+    type: "Collection",
+    label: {
+      none: ["Maktaba"],
+    },
+    summary: {
+      none: [
+        "Maktaba is an open-access digital collection of translated and contextualized Arabic manuscripts from Muslim West Africa. A collaborative effort between Northwestern University and the University of Illinois at Urbana-Champaign, Maktaba is dedicated to making portions of the African manuscript collections from these universities’ libraries accessible to a wide variety of users for learning, teaching, and research.",
+      ],
+    },
+  };
 
-  try{
-    const items = await Promise.all(event.Items.map(async (item) => {
-      const result = await axios.get(item.uri.S);
-      const manifest = result.data;
-      const storedLabel = await getLabel(item.uri.S);
-      const label = storedLabel ? { "none": [storedLabel] } : manifest.label;
-      return {"id": `${PUBLIC_BASE_URL}/${item.publishKey.S}.json`, "type": "Manifest", "label": label}
-    }));
-  
+  try {
+    const items = await Promise.all(
+      event.Items.map(async (item) => {
+        const result = await axios.get(item.uri.S);
+        const manifest = result.data;
+        const storedLabel = await getLabel(item.uri.S);
+        const label = storedLabel ? { none: [storedLabel] } : manifest.label;
+        return {
+          id: `${PUBLIC_BASE_URL}/${item.publishKey.S}.json`,
+          type: "Manifest",
+          label: label,
+        };
+      })
+    );
+
     jsonCollection.items = items;
-    
+
     const s3Client = new S3Client();
 
     const params = {
@@ -41,21 +50,18 @@ exports.handler = async function (event, context) {
       Key: "collection.json",
       ContentType: "application/json",
       ACL: "private",
-      Body: JSON.stringify(jsonCollection, null, 4)
-    }
+      Body: JSON.stringify(jsonCollection, null, 4),
+    };
     const putObjectCommand = new PutObjectCommand(params);
     await s3Client.send(putObjectCommand);
-    
-    
-  }catch(error){
-    console.error(error)
+  } catch (error) {
+    console.error(error);
   }
- 
-    const response = {
-      statusCode: 200
-    };
-    return response;
-  
+
+  const response = {
+    statusCode: 200,
+  };
+  return response;
 };
 
 /**
@@ -73,8 +79,8 @@ async function getLabel(uri) {
   try {
     const data = await docClient.send(new GetCommand(params));
     if (data?.Item) {
-      return data.Item.label
-    }else{
+      return data.Item.label;
+    } else {
       return null;
     }
   } catch (error) {
