@@ -1,7 +1,6 @@
 const { DynamoDBDocumentClient, GetCommand } = require("@aws-sdk/lib-dynamodb");
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
-const axios = require("axios");
 
 const PUBLIC_BASE_URL = process.env.BASE_URL;
 const BUCKET = process.env.BUCKET;
@@ -29,14 +28,15 @@ exports.handler = async function (event, context) {
   try {
     const items = await Promise.all(
       event.Items.map(async (item) => {
-        const result = await axios.get(item.uri.S);
-        const manifest = result.data;
         const storedLabel = await getLabel(item.uri.S);
-        const label = storedLabel ? { none: [storedLabel] } : manifest.label;
+        if (!storedLabel) {
+          throw new Error(`No stored label found for ${item.uri.S}`);
+        }
+
         return {
           id: `${PUBLIC_BASE_URL}/${item.publishKey.S}.json`,
           type: "Manifest",
-          label: label,
+          label: { none: [storedLabel] },
         };
       })
     );
@@ -56,6 +56,7 @@ exports.handler = async function (event, context) {
     await s3Client.send(putObjectCommand);
   } catch (error) {
     console.error(error);
+    throw error;
   }
 
   const response = {
@@ -85,6 +86,6 @@ async function getLabel(uri) {
     }
   } catch (error) {
     console.error("Error fetching metadata from DynamoDB: ", error);
-    return null;
+    throw error;
   }
 }

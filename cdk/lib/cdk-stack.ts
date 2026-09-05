@@ -77,6 +77,24 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       pointInTimeRecovery: true,
     });
 
+    const reviewTableName = this.node.tryGetContext("reviewTableName");
+    if (
+      reviewTableName &&
+      (this.account !== "625046682746" ||
+        reviewTableName !== "MaktabaReconciliation-2026-09-04")
+    ) {
+      throw new Error(
+        "The review table override is restricted to the staging reconciliation table"
+      );
+    }
+    const dataTable = reviewTableName
+      ? dynamoDB.Table.fromTableName(
+          this,
+          "ReviewManifests",
+          reviewTableName
+        )
+      : manifestsTable;
+
     console.log("manifestsTable.tableName", manifestsTable.tableName);
 
     const hostedZone = route53.HostedZone.fromLookup(this, "hostedZone", {
@@ -133,6 +151,39 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       }
     );
 
+    const bodyRequestValidator = (id: string) =>
+      new apigateway.RequestValidator(api, id, {
+        restApi: api,
+        validateRequestBody: true,
+      });
+    const itemPostValidator = bodyRequestValidator(
+      "ManifestEditorBackendManifestEditorApiitemPOSTValidatorDA8DCB71"
+    );
+    const metadataPostValidator = bodyRequestValidator(
+      "ManifestEditorBackendManifestEditorApimetadataPOSTValidator0B05C3AC"
+    );
+    const metadataPutValidator = bodyRequestValidator(
+      "ManifestEditorBackendManifestEditorApimetadataPUTValidatorB838166B"
+    );
+    const metadataDeleteValidator = bodyRequestValidator(
+      "ManifestEditorBackendManifestEditorApimetadataDELETEValidator38D182A6"
+    );
+    const canvasPutValidator = bodyRequestValidator(
+      "ManifestEditorBackendManifestEditorApicanvasPUTValidator8F9AF0A8"
+    );
+    const canvasPostValidator = bodyRequestValidator(
+      "ManifestEditorBackendManifestEditorApicanvasPOSTValidator86B20AEF"
+    );
+    const annotationPostValidator = bodyRequestValidator(
+      "ManifestEditorBackendManifestEditorApiannotationPOSTValidator593D6FFF"
+    );
+    const annotationPutValidator = bodyRequestValidator(
+      "ManifestEditorBackendManifestEditorApiannotationPUTValidatorEFC0B322"
+    );
+    const annotationDeleteValidator = bodyRequestValidator(
+      "ManifestEditorBackendManifestEditorApiannotationDELETEValidator7AC728FC"
+    );
+
     // list all manifest metadata
     const manifestListResource = api.root.addResource("manifests");
 
@@ -144,7 +195,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         path.join(__dirname, "../../lambdas/manifests")
       ),
       environment: {
-        MANIFESTS_TABLE: manifestsTable.tableName,
+        MANIFESTS_TABLE: dataTable.tableName,
       },
     });
 
@@ -152,7 +203,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["dynamodb:Scan"],
-        resources: [manifestsTable.tableArn],
+        resources: [dataTable.tableArn],
       })
     );
 
@@ -174,7 +225,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       handler: "index.handler",
       code: lambda.Code.fromAsset(path.join(__dirname, "../../lambdas/item")),
       environment: {
-        MANIFESTS_TABLE: manifestsTable.tableName,
+        MANIFESTS_TABLE: dataTable.tableName,
       },
     });
 
@@ -182,7 +233,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["dynamodb:GetItem"],
-        resources: [manifestsTable.tableArn],
+        resources: [dataTable.tableArn],
       })
     );
 
@@ -212,9 +263,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         requestModels: {
           "application/json": itemKeys,
         },
-        requestValidatorOptions: {
-          validateRequestBody: true,
-        },
+        requestValidator: itemPostValidator,
         authorizer,
       }
     );
@@ -228,7 +277,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       handler: "index.handler",
       code: this.bundleAssets("../../lambdas/metadata"),
       environment: {
-        MANIFESTS_TABLE: manifestsTable.tableName,
+        MANIFESTS_TABLE: dataTable.tableName,
       },
     });
 
@@ -240,7 +289,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
           "dynamodb:UpdateItem",
           "dynamodb:PutItem",
         ],
-        resources: [manifestsTable.tableArn],
+        resources: [dataTable.tableArn],
       })
     );
 
@@ -258,6 +307,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
           summary: { type: apigateway.JsonSchemaType.STRING },
           provider: { enum: ["Northwestern", "UIUC"] },
           publicStatus: { type: apigateway.JsonSchemaType.BOOLEAN },
+          sourceManifest: { type: apigateway.JsonSchemaType.OBJECT },
         },
         required: ["uri", "sortKey", "label", "provider", "publicStatus"],
       },
@@ -270,9 +320,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         requestModels: {
           "application/json": metadataRequest,
         },
-        requestValidatorOptions: {
-          validateRequestBody: true,
-        },
+        requestValidator: metadataPostValidator,
         authorizer,
       }
     );
@@ -284,9 +332,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         requestModels: {
           "application/json": metadataRequest,
         },
-        requestValidatorOptions: {
-          validateRequestBody: true,
-        },
+        requestValidator: metadataPutValidator,
         authorizer,
       }
     );
@@ -313,9 +359,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         requestModels: {
           "application/json": metadataKeys,
         },
-        requestValidatorOptions: {
-          validateRequestBody: true,
-        },
+        requestValidator: metadataDeleteValidator,
         authorizer,
       }
     );
@@ -330,7 +374,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       handler: "index.handler",
       code: lambda.Code.fromAsset(path.join(__dirname, "../../lambdas/canvas")),
       environment: {
-        MANIFESTS_TABLE: manifestsTable.tableName,
+        MANIFESTS_TABLE: dataTable.tableName,
       },
     });
 
@@ -338,7 +382,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["dynamodb:UpdateItem", "dynamodb:PutItem"],
-        resources: [manifestsTable.tableArn],
+        resources: [dataTable.tableArn],
       })
     );
 
@@ -368,9 +412,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         requestModels: {
           "application/json": canvasRequest,
         },
-        requestValidatorOptions: {
-          validateRequestBody: true,
-        },
+        requestValidator: canvasPutValidator,
         authorizer,
       }
     );
@@ -382,9 +424,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         requestModels: {
           "application/json": canvasRequest,
         },
-        requestValidatorOptions: {
-          validateRequestBody: true,
-        },
+        requestValidator: canvasPostValidator,
         authorizer,
       }
     );
@@ -400,7 +440,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         path.join(__dirname, "../../lambdas/annotation")
       ),
       environment: {
-        MANIFESTS_TABLE: manifestsTable.tableName,
+        MANIFESTS_TABLE: dataTable.tableName,
       },
     });
 
@@ -412,7 +452,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
           "dynamodb:UpdateItem",
           "dynamodb:PutItem",
         ],
-        resources: [manifestsTable.tableArn],
+        resources: [dataTable.tableArn],
       })
     );
 
@@ -442,9 +482,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         requestModels: {
           "application/json": annotationRequest,
         },
-        requestValidatorOptions: {
-          validateRequestBody: true,
-        },
+        requestValidator: annotationPostValidator,
         authorizer,
       }
     );
@@ -456,9 +494,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         requestModels: {
           "application/json": annotationRequest,
         },
-        requestValidatorOptions: {
-          validateRequestBody: true,
-        },
+        requestValidator: annotationPutValidator,
         authorizer,
       }
     );
@@ -488,9 +524,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         requestModels: {
           "application/json": annotationKeys,
         },
-        requestValidatorOptions: {
-          validateRequestBody: true,
-        },
+        requestValidator: annotationDeleteValidator,
         authorizer,
       }
     );
@@ -552,6 +586,19 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       versioned: true,
     });
 
+    metadataFunction.addEnvironment("BUCKET", bucket.bucketName);
+    metadataFunction.addEnvironment(
+      "BASE_URL",
+      `https://${iiifAssetsDomainName}`
+    );
+    metadataFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["s3:PutObject", "s3:DeleteObject"],
+        resources: [`${bucket.bucketArn}/sources/*`],
+      })
+    );
+
     const originAccessIdentity = new cloudfront.OriginAccessIdentity(
       this,
       "CFOriginAccessIdentity"
@@ -591,7 +638,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
       environment: {
         BASE_URL: `https://${iiifAssetsDomainName}`,
         BUCKET: bucket.bucketName,
-        MANIFEST_TABLE_NAME: manifestsTable.tableName,
+        MANIFEST_TABLE_NAME: dataTable.tableName,
       },
       timeout: cdk.Duration.minutes(1),
       memorySize: 512,
@@ -608,9 +655,17 @@ export class ManifestEditorBackendStack extends cdk.Stack {
     writeManifestFunction.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
+        actions: ["s3:GetObject"],
+        resources: [`${bucket.bucketArn}/sources/*`],
+      })
+    );
+
+    writeManifestFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
         actions: ["dynamodb:GetItem"],
         resources: [
-          `arn:aws:dynamodb:us-east-1:${this.account}:table/${manifestsTable.tableName}`,
+          dataTable.tableArn,
         ],
       })
     );
@@ -626,7 +681,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         environment: {
           BASE_URL: `https://${iiifAssetsDomainName}`,
           BUCKET: bucket.bucketName,
-          MANIFEST_TABLE_NAME: manifestsTable.tableName,
+          MANIFEST_TABLE_NAME: dataTable.tableName,
         },
         timeout: cdk.Duration.minutes(1),
         memorySize: 512,
@@ -647,7 +702,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         actions: [
           "dynamodb:GetItem",
         ],
-        resources: [manifestsTable.tableArn],
+        resources: [dataTable.tableArn],
       })
     );
 
@@ -674,7 +729,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
           "dynamodb:BatchGetItem",
         ],
         resources: [
-          `arn:aws:dynamodb:us-east-1:${this.account}:table/${manifestsTable.tableName}`,
+          dataTable.tableArn,
         ],
       })
     );
@@ -698,7 +753,7 @@ export class ManifestEditorBackendStack extends cdk.Stack {
         .readFileSync("../state-machines/publish-definition.asl.json")
         .toString(),
       definitionSubstitutions: {
-        manifestTableName: `${manifestsTable.tableName}`,
+        manifestTableName: `${dataTable.tableName}`,
         writeManifestFunctionName: `${writeManifestFunction.functionName}:$LATEST`,
         writeCollectionFunctionName: `${writeCollectionFunction.functionName}:$LATEST`,
         cloudFrontDistributionId: distribution.distributionId,
