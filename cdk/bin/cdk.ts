@@ -7,7 +7,7 @@ import * as cdk from "aws-cdk-lib";
 import { ManifestEditorBackendStack } from "../lib/cdk-stack";
 import { loadBuildConfig } from "../config/load-build-config";
 
-const app = new cdk.App();
+const app = new cdk.App({ autoSynth: false });
 
 async function main() {
   const buildConfig = await loadBuildConfig() || "{}"; //TODO: Typescript - fix this
@@ -21,5 +21,9 @@ async function main() {
   cdk.Tags.of(stack).add("Project", "maktaba");
 }
 
-main();
-
+main()
+  .then(() => app.synth())
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });

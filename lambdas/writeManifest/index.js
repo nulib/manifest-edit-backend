@@ -1,23 +1,34 @@
 const { DynamoDBDocumentClient, GetCommand } = require("@aws-sdk/lib-dynamodb");
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
-const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
-const axios = require("axios");
+const {
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} = require("@aws-sdk/client-s3");
 const { convertPresentation2 } = require("@iiif/parser/presentation-2");
+const {
+  resourceIdCandidates,
+  resourceIdFromCanvas,
+} = require("./canvas-keys");
+const {
+  attachTextAnnotations,
+  rewriteCanvas,
+  textAnnotation,
+} = require("./manifest-transform");
+const { isManifest, sourceManifestKey } = require("./source-manifest");
 
 const BUCKET = process.env.BUCKET;
 const BASE_URL = process.env.BASE_URL;
 const MANIFEST_TABLE_NAME = process.env.MANIFEST_TABLE_NAME;
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
+const s3Client = new S3Client({});
 
 exports.handler = async function (event, context) {
   console.log(event)
   try {
-    /**
-     * fetch IIIF manifest
-     */
-    const res = await axios.get(event.uri.S);
-    const data = res?.data;
+    const key = event.publishKey.S;
+    const data = await getSourceManifest(key);
 
     /**
      * upgrades manifest to IIIF Presentation 3.0 API
@@ -27,7 +38,6 @@ exports.handler = async function (event, context) {
     /**
      * constuct unique key patterns
      */
-    const key = event.publishKey.S;
     const id = `${BASE_URL}/${key}`;
 
     /**
@@ -37,9 +47,13 @@ exports.handler = async function (event, context) {
       ...manifestJson,
       id: `${id}.json`,
       seeAlso: [
-        ...manifestJson?.seeAlso,
+        ...(Array.isArray(manifestJson?.seeAlso)
+          ? manifestJson.seeAlso
+          : manifestJson?.seeAlso
+            ? [manifestJson.seeAlso]
+            : []),
         {
-          id: manifestJson.id,
+          id: event.uri.S,
           type: "Manifest",
           format: "application/json",
           label: {
@@ -63,8 +77,8 @@ exports.handler = async function (event, context) {
      */
     const visibleCanvases = await Promise.all(
       manifest.items.map(async (item) => {
-        const resourceId = item.items[0].items[0].body.service[0]["@id"];
-        const hide = await hideCanvas(event.uri.S, resourceId);
+        const resourceIds = resourceIdCandidates(item);
+        const hide = await hideCanvas(event.uri.S, resourceIds);
         return hide ? null : item;
       })
     );
@@ -78,42 +92,26 @@ exports.handler = async function (event, context) {
          * tidy ids and create new Canvas
          */
         const canvasId = `${id}/canvas/${index}`;
-        const canvas = {
-          ...item,
-          id: canvasId,
-        };
-
-        canvas.items[0].id = `${canvasId}/page`;
-        canvas.items[0].items[0].id = `${canvasId}/annotation/0`;
-        canvas.items[0].items[0].target = canvasId;
+        const canvas = rewriteCanvas(item, canvasId);
 
         /**
          * annotate Canvas
          */
-        const serviceId = item.items[0].items[0].body.service[0]["@id"];
+        const serviceId = resourceIdFromCanvas(item);
         const annotations = await getAnnotations(
           event.uri.S,
-          serviceId,
+          resourceIdCandidates(serviceId),
           canvasId
         );
 
-        if (annotations.length > 0) {
-          canvas.annotations = [
-            {
-              id: `${canvasId}/annotations`,
-              type: "AnnotationPage",
-              items: annotations,
-            },
-          ];
-        }
-
-        return canvas;
+        return attachTextAnnotations(canvas, annotations);
       })
     );
 
     await saveDocumentToS3(key, manifest);
   } catch (error) {
     console.error(JSON.stringify(error));
+    throw error;
   }
 
   return {
@@ -125,24 +123,18 @@ exports.handler = async function (event, context) {
 /**
  * hideCanvas function to check if a canvas should be hidden
  */
-async function hideCanvas(uri, resourceId) {
-  const params = {
-    TableName: MANIFEST_TABLE_NAME,
-    Key: {
-      uri: uri,
-      sortKey: `CANVAS#${resourceId}`,
-    },
-  };
-
+async function hideCanvas(uri, resourceIds) {
   try {
-    const data = await docClient.send(new GetCommand(params));
-    if (data?.Item && data?.Item?.hide === true) {
-      return true;
+    for (const resourceId of resourceIds) {
+      const data = await getItem(uri, `CANVAS#${resourceId}`);
+      if (data?.Item) {
+        return data.Item.hide === true;
+      }
     }
     return false;
   } catch (error) {
     console.error("Error fetching item from DynamoDB: ", error);
-    return false;
+    throw error;
   }
 }
 
@@ -169,63 +161,79 @@ async function getLabelAndSummary(uri) {
     return null;
   } catch (error) {
     console.error("Error fetching metadata from DynamoDB: ", error);
-    return null;
+    throw error;
   }
 }
 
-async function getAnnotations(uri, serviceId, canvasId) {
-  /**
-   * note that "commenting" is the spec valid motivation value, however the newly formed
-   * IIIF Annotations TSG is proposing "transcribing" and "translating" as valid options
-   * let's use those once they are valid
-   */
+async function getAnnotations(uri, resourceIds, canvasId) {
   const items = [
     {
       language: "en",
-      motivation: "commenting",
       sortKey: "TRANSLATION",
     },
     {
       language: "ar",
-      motivation: "commenting",
       sortKey: "TRANSCRIPTION",
     },
   ];
 
   const annotations = await Promise.all(
     items.map(async (entry) => {
-      const command = new GetCommand({
-        TableName: MANIFEST_TABLE_NAME,
-        Key: {
-          uri: uri,
-          sortKey: `${entry.sortKey}#${serviceId}`,
-        },
-      });
-
-      const data = await docClient.send(command);
+      const data = await getFirstItem(
+        uri,
+        resourceIds.map((resourceId) => `${entry.sortKey}#${resourceId}`)
+      );
 
       if (!data?.Item?.value) return;
 
-      return await {
-        id: `${canvasId}/annotations/${entry.sortKey.toLowerCase()}`,
-        type: "Annotation",
-        motivation: entry.motivation,
-        body: {
-          type: "TextualBody",
-          language: entry.language,
-          format: "text/markdown",
-          value: data.Item.value,
-        },
-        target: canvasId,
-      };
+      return textAnnotation({
+        canvasId,
+        language: entry.language,
+        sortKey: entry.sortKey,
+        value: data.Item.value,
+      });
     })
   );
 
   return annotations.filter((annotation) => annotation);
 }
 
+async function getItem(uri, sortKey) {
+  return await docClient.send(new GetCommand({
+    TableName: MANIFEST_TABLE_NAME,
+    Key: { uri, sortKey },
+  }));
+}
+
+async function getFirstItem(uri, sortKeys) {
+  for (const sortKey of sortKeys) {
+    const data = await getItem(uri, sortKey);
+    if (data?.Item) return data;
+  }
+
+  return {};
+}
+
+async function getSourceManifest(publishKey) {
+  const response = await s3Client.send(
+    new GetObjectCommand({
+      Bucket: BUCKET,
+      Key: sourceManifestKey(publishKey),
+    })
+  );
+  const body = await response.Body.transformToString();
+  const manifest = JSON.parse(body);
+
+  if (!isManifest(manifest)) {
+    throw new Error(
+      `Cached source ${sourceManifestKey(publishKey)} is not a IIIF Manifest`
+    );
+  }
+
+  return manifest;
+}
+
 async function saveDocumentToS3(key, doc) {
-  const s3Client = new S3Client();
   const params = {
     Bucket: BUCKET,
     ContentType: "application/json",

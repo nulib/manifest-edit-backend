@@ -1,0 +1,17 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  ManifestPublisher:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ../../lambdas/writeManifest
+      Handler: index.handler
+      Runtime: nodejs18.x
+      MemorySize: 512
+      Timeout: 60
+      Environment:
+        Variables:
+          BASE_URL: https://staging-test.invalid/maktaba
+          BUCKET: maktaba-manifest-publish-test-625046682746
+          MANIFEST_TABLE_NAME: MaktabaImportFromProd-2026-09-04

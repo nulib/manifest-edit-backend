@@ -1,0 +1,8 @@
+{
+  "publishKey": {
+    "S": "integration/northwestern-choice"
+  },
+  "uri": {
+    "S": "https://api.dc.library.northwestern.edu/api/v2/works/e60201d1-b392-4544-9500-0c986567b415?as=iiif"
+  }
+}

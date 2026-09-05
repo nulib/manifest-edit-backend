@@ -1,0 +1,8 @@
+{
+  "publishKey": {
+    "S": "integration/northwestern-v3"
+  },
+  "uri": {
+    "S": "https://api.dc.library.northwestern.edu/api/v2/works/b091b665-862e-4c89-b2a7-41b44d067eb9?as=iiif"
+  }
+}

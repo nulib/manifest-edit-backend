@@ -1,5 +1,6 @@
 const { DynamoDBDocumentClient, GetCommand } = require("@aws-sdk/lib-dynamodb");
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+const { sortKeyCandidates } = require("./canvas-keys");
 
 exports.handler = async function (event, context) {
   console.log("EVENT: \n" + JSON.stringify(event, null, 2));
@@ -22,22 +23,24 @@ exports.handler = async function (event, context) {
     return respond(400, "Missing required parameters uri and sortKey")
   }
 
-  const command = new GetCommand({
-    TableName: process.env.MANIFESTS_TABLE,
-    Key: {
-      uri: uri,
-      sortKey: sortKey
-    },
-  });
-
   try {
-    const response = await docClient.send(command);
-    console.log("response", response)
+    for (const candidateSortKey of sortKeyCandidates(sortKey)) {
+      const command = new GetCommand({
+        TableName: process.env.MANIFESTS_TABLE,
+        Key: {
+          uri: uri,
+          sortKey: candidateSortKey
+        },
+      });
+      const response = await docClient.send(command);
+      console.log("response", response)
 
-    if (response.Item === undefined) {
-      return respond(404, "Not found")
+      if (response.Item !== undefined) {
+        return respond(200, JSON.stringify(response.Item));
+      }
     }
-    return respond(200, JSON.stringify(response.Item));
+
+    return respond(404, "Not found")
   } catch (error) {
     return respond(500, "Internal Server Error")
   }
